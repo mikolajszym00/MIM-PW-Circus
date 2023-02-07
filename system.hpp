@@ -58,13 +58,20 @@ class System
 public:
     typedef std::unordered_map<std::string, std::shared_ptr<Machine>> machines_t;
     
-    System(machines_t machines, unsigned int numberOfWorkers, unsigned int clientTimeout);
+    System(machines_t machines, unsigned int numberOfWorkers, unsigned int clientTimeout) :
+        machines(std::move(machines)),
+        numberOfWorkers(numberOfWorkers),
+        clientTimeout(clientTimeout)
+        {
+            closed = false;
+        }
+
 
     System();
 
-    std::vector<WorkerReport> shutdown();
+    std::vector<WorkerReport> shutdown(); // 0
 
-    std::vector<std::string> getMenu() const;
+    std::vector<std::string> getMenu() const; // 3
 
     std::vector<unsigned int> getPendingOrders() const;
 
@@ -73,6 +80,25 @@ public:
     std::vector<std::unique_ptr<Product>> collectOrder(std::unique_ptr<CoasterPager> CoasterPager);
 
     unsigned int getClientTimeout() const;
+
+
+private:
+    machines_t machines;
+    unsigned int numberOfWorkers;
+    unsigned int clientTimeout;
+
+    bool closed;
+
+    void check_products(const std::vector<std::string> &products);
 };
 
 #endif // SYSTEM_HPP
+
+// 1 - zrobione pobieznie
+// 2 - zrobione lepiej
+// 3 - przemyslane wszsykie warianty
+// 4 - z testami
+// 5 - ostateczne
+
+
+
