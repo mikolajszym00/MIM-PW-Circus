@@ -6,6 +6,7 @@
 #include <unordered_map>
 #include <functional>
 #include <future>
+#include <list>
 
 #include "machine.hpp"
 
@@ -75,7 +76,7 @@ public:
 
     std::vector<unsigned int> getPendingOrders() const;
 
-    std::unique_ptr<CoasterPager> order(std::vector<std::string> products);
+    std::unique_ptr<CoasterPager> order(std::vector<std::string> products); // 2
 
     std::vector<std::unique_ptr<Product>> collectOrder(std::unique_ptr<CoasterPager> CoasterPager);
 
@@ -88,6 +89,11 @@ private:
     unsigned int clientTimeout;
 
     bool closed;
+
+    std::mutex mut_ordering;
+    std::mutex mut_ordering_for_employees;
+
+    std::list<std::pair<std::unique_ptr<CoasterPager>*, std::vector<std::string>>> orders;
 
     void check_products(const std::vector<std::string> &products);
 };

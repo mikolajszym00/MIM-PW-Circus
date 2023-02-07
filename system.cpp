@@ -35,5 +35,17 @@ std::unique_ptr<CoasterPager> System::order(std::vector<std::string> products) {
 
     check_products(products);
 
+    // nadać numer zamowienia
+    std::unique_ptr<CoasterPager> cp = std::make_unique<CoasterPager>();
 
+    std::lock_guard<std::mutex> lock(mut_ordering);
+    orders.push_back(std::make_pair(&cp, products));
+
+    if (orders.size() == 1) {
+        mut_ordering_for_employees.unlock();
+    }
+
+    mut_ordering.unlock();
+
+    return std::move(cp); // czy nie zdejmie ref z cp
 }
