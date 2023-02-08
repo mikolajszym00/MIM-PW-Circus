@@ -50,7 +50,10 @@ class System;
 class CoasterPager
 {
 public:
-    CoasterPager(unsigned int id, System& system) : id(id), system(system) {}
+    CoasterPager(unsigned int id, System& system) : id(id), system(system)
+    {
+        is_ready = false;
+    }
 
     void wait() const;
 
@@ -62,6 +65,8 @@ public:
 
 private:
     unsigned int id;
+    bool is_ready;
+
     System& system; // czy & ma byc
 };
 
@@ -77,6 +82,7 @@ public:
         {
             closed = false;
             free_id = 0;
+            mut_ordering_for_employees.lock();
         }
 
 
@@ -88,7 +94,7 @@ public:
 
     std::vector<unsigned int> getPendingOrders() const;
 
-    std::unique_ptr<CoasterPager> order(std::vector<std::string> products); // 2
+    std::unique_ptr<CoasterPager> order(const std::vector<std::string>& products); // 2
 
     std::vector<std::unique_ptr<Product>> collectOrder(std::unique_ptr<CoasterPager> CoasterPager);
 

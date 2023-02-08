@@ -14,31 +14,31 @@ std::vector<std::string> System::getMenu() const {
     std::vector<std::string> keys;
     keys.reserve(machines.size());
 
-    for(auto kv : machines) {
+    for(const auto& kv : machines) {
         keys.push_back(kv.first);
     }
 
-    return std::move(keys);
+    return keys;
 }
 
 void System::check_products(const std::vector<std::string> &products) {
-    for (std::string s: products) {
+    for (const std::string& s: products) {
         if (!machines.count(s))
-            BadOrderException();
+            throw BadOrderException();
     }
 }
 
-std::unique_ptr<CoasterPager> System::order(std::vector<std::string> products) {
+std::unique_ptr<CoasterPager> System::order(const std::vector<std::string>& products) {
     if (closed) {
-        RestaurantClosedException();
+        throw RestaurantClosedException();
     }
 
     check_products(products);
 
+    std::lock_guard<std::mutex> lock(mut_ordering);
     std::unique_ptr<CoasterPager> cp = std::make_unique<CoasterPager>(free_id, *this);
 
-    std::lock_guard<std::mutex> lock(mut_ordering);
-    orders.push_back(std::make_pair(free_id, products));
+    orders.emplace_back(free_id, products);
 
     std::mutex mut;
     mut.lock(); // system bierze mutexa, zwolni go dopiero gdy posiłek bedzie gotowy
@@ -57,7 +57,7 @@ std::unique_ptr<CoasterPager> System::order(std::vector<std::string> products) {
 
 //    mut_ordering.unlock(); // guard zwolni mut_ordering??
 
-    return std::move(cp);
+    return cp;
 }
 
 unsigned int System::getClientTimeout() const {
