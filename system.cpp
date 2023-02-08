@@ -43,7 +43,7 @@ std::unique_ptr<CoasterPager> System::order(const std::vector<std::string>& prod
     std::mutex mut;
     mut.lock(); // system bierze mutexa, zwolni go dopiero gdy posiłek bedzie gotowy
     // czy w przypadku wyjatkow to jest bezpieczne??
-    cp_mutex.insert({free_id, mut});
+    mut_coaster_pager.insert({free_id, mut});
 
 //    std::this_thread::sleep_for(std::chrono::milliseconds(10000));
 //    std::cout << "wstalem system" << "\n";
@@ -58,6 +58,18 @@ std::unique_ptr<CoasterPager> System::order(const std::vector<std::string>& prod
 //    mut_ordering.unlock(); // guard zwolni mut_ordering??
 
     return cp;
+}
+
+std::vector<std::unique_ptr<Product>> System::collectOrder(std::unique_ptr<CoasterPager> CoasterPager) {
+    unsigned int id = CoasterPager->getId();
+
+    // wyjatki
+
+    std::unique_lock<std::mutex> lock_comp(mut_completed_meals);
+    std::vector<std::unique_ptr<Product>> meal = completed_meals[id];
+    lock_comp.unlock();
+
+    return meal;
 }
 
 unsigned int System::getClientTimeout() const {

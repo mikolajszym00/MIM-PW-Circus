@@ -21,7 +21,7 @@ void System::pick_up_product(
 }
 
 std::vector<std::thread> System::send_threads_to_machines(
-        std::unique_ptr<Product> *products,
+        std::vector<std::unique_ptr<Product>> products, // TODO: czy z wektorem bedzie dzialac
         const std::vector<std::string> &required_machines,
         machines_t owned_machines) {
 
@@ -75,7 +75,7 @@ void System::collect_products(std::vector<std::thread> threads_to_wait_for) {
 
 void System::work(const machines_t &owned_machines) {
     while (true) {
-        std::lock_guard<std::mutex> lock(mut_ordering_for_employees); // TODO: unique
+        std::lock_guard<std::mutex> lock(mut_ordering_for_employees); // TODO unique
         std::lock_guard<std::mutex> lock_ord(mut_ordering);
 
         std::pair<unsigned int, std::vector<std::string>> order = orders.front();
@@ -85,25 +85,34 @@ void System::work(const machines_t &owned_machines) {
             mut_ordering_for_employees.unlock();
         }
 
-        std::unique_ptr<Product> products[owned_machines.size()];
-        std::vector<std::thread> threads_to_wait_for = send_threads_to_machines(products,
-                                                                                order.second,
-                                                                                owned_machines);
+        std::vector<std::unique_ptr<Product>> products; // TODO moze zmienic na wektor
+        std::vector<std::thread> threads_to_wait_for = send_threads_to_machines(products, order.second, owned_machines);
 
         mut_ordering.unlock();
-
 
         // zbieranie z maszyn produktow
         collect_products(threads_to_wait_for);
 
-//        if (!all_collected) { // TODO: sprwić czy ktorych to null jesli tak to trzeba zwrocic
-//            // zmien flage na nieudana
-//
-//            return_products();
-//        }
+        // sprawdzenie czy są wszystkie produkty
+        bool all_delivered = true; // TODO wywalic do funkcji
+        for (std::unique_ptr<Product>& prod: products) {
+            if (!prod) {
+                all_delivered = false;
+            }
+        }
 
-        // przygotuj posilek do odebrania lub informacje o niepowodzeniu
-        // uwolnij klienta z wait
+        if (all_delivered) {
+            std::unique_lock<std::mutex> lock_comp(mut_completed_meals);
+            completed_meals.emplace(order.first, products);
+            lock_comp.unlock();
+
+            mut_coaster_pager[order.first].unlock();
+        }
+        else {
+            // podnieś wyjątek na wait
+
+//            return_products();
+        }
 
         break; // tmp
     }
