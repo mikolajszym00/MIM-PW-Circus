@@ -83,6 +83,8 @@ public:
             closed = false;
             free_id = 0;
             mut_ordering_for_employees.lock();
+
+            // stworzyc pracownikow i kontrolerow
         }
 
 

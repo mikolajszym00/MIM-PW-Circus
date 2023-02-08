@@ -22,7 +22,7 @@ std::vector<std::string> System::getMenu() const {
 }
 
 void System::check_products(const std::vector<std::string> &products) {
-    for (const std::string& s: products) {
+    for (const std::string& s: products) { //sprawdzic czy maszyna dziala
         if (!machines.count(s))
             throw BadOrderException();
     }

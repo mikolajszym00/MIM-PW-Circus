@@ -1,10 +1,19 @@
 #include "system.hpp"
 
+void System::machine_controller() {
+
+}
+
 
 void System::get_product_from_machine(std::unique_ptr<Product>& prod, const std::shared_ptr<Machine>& machine) {
     // łapanie wyjatku
 
+    // czekaj na mutexie
+
     prod = machine->getProduct();
+
+    // ustaw flage czy zepsuta
+    // zwolnij mutex ze skonczyles pobierac
 }
 
 std::vector<std::thread> System::send_threads_to_machines(
@@ -33,18 +42,24 @@ std::vector<std::thread> System::send_threads_to_machines(
 }
 
 bool System::collect_products(std::vector<std::thread> threads_to_wait_for) {
-    try { // moze niedokonczyc joinowania
-        for (std::thread &t: threads_to_wait_for) {
-            t.join();
+    unsigned int i = 0;
+    bool working = true;
+
+    while (i < threads_to_wait_for.size()) {
+        try { // moze niedokonczyc joinowania
+                threads_to_wait_for[i].join();
+                i++;
+        }
+        catch (const MachineFailure& e) {
+            std::cout << "znowu to zrobil" << "\n";
+            i++;
+            working = false;
+//            terminated list
         }
     }
-    catch (const MachineFailure& e) {
-        std::cout << "znowu to zrobil" << "\n";
 
-        return false;
-    }
 
-    return true;
+    return working;
 }
 
 void System::work(const machines_t& owned_machines) {
