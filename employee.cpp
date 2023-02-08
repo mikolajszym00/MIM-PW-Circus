@@ -1,39 +1,62 @@
 #include "system.hpp"
 
-void System::machine_controller() {
+void System::pick_up_product(
+        std::mutex &mut_product_recipient,
+        std::mutex &mut_machine_controller,
+        std::unique_ptr<Product> &prod,
+        const std::string &name,
+        const std::shared_ptr<Machine> &machine) {
 
-}
+    mut_product_recipient.lock();
 
+    try {
+        prod = machine->getProduct();
+    }
+    catch (const MachineFailure &e) {
+        prod = nullptr;
+        machine_closed[name] = true; // TODO: cos na sprawdzenie tej zmiennej
+    }
 
-void System::get_product_from_machine(std::unique_ptr<Product>& prod, const std::shared_ptr<Machine>& machine) {
-    // łapanie wyjatku
-
-    // czekaj na mutexie
-
-    prod = machine->getProduct();
-
-    // ustaw flage czy zepsuta
-    // zwolnij mutex ze skonczyles pobierac
+    mut_machine_controller.unlock();
 }
 
 std::vector<std::thread> System::send_threads_to_machines(
-        std::unique_ptr<Product>* products,
-        const std::vector<std::string>& required_machines,
+        std::unique_ptr<Product> *products,
+        const std::vector<std::string> &required_machines,
         machines_t owned_machines) {
 
     std::vector<std::thread> threads_to_wait_for;
 
     unsigned int i = 0;
-    for (const std::string& name: required_machines) {
-        std::thread t{[this, i, &products, name, &owned_machines]{
-            get_product_from_machine(products[i], owned_machines[name]);
+    for (const std::string &name: required_machines) {
+        std::mutex mut_product_recipient;
+        // zatrzymuje swój wątek przed wywołaniem getProduct
+        mut_product_recipient.lock();
+
+        std::mutex mut_machine_controller;
+        // zatrzymuje kontrolera przed wpuszceniem kolejnego wątku do getProduct
+        mut_machine_controller.lock();
+
+        std::thread t{[&mut_product_recipient, &mut_machine_controller, this, i, &products, name, &owned_machines] {
+            pick_up_product(mut_product_recipient,
+                            mut_machine_controller,
+                            products[i],
+                            name,
+                            owned_machines[name]);
         }};
 
+        // sprawdzic czy maszyna dziala
+        std::unique_lock<std::mutex> lock(mut_production[name]);
+        {
+            queue_to_machine[name].push_back({mut_product_recipient, mut_machine_controller});
+
+            if (queue_to_machine[name].size() == 1) {
+                mut_production_for_controller[name].unlock();
+            }
+        }
+        lock.unlock();
+
         threads_to_wait_for.push_back(std::move(t));
-
-        // dodac do kolejki czekajacych dla watku przy maszynie??
-        // cond moze ze ktos jest
-
 
         i++;
     }
@@ -41,31 +64,18 @@ std::vector<std::thread> System::send_threads_to_machines(
     return threads_to_wait_for;
 }
 
-bool System::collect_products(std::vector<std::thread> threads_to_wait_for) {
+void System::collect_products(std::vector<std::thread> threads_to_wait_for) {
     unsigned int i = 0;
-    bool working = true;
 
     while (i < threads_to_wait_for.size()) {
-        try { // moze niedokonczyc joinowania
-                threads_to_wait_for[i].join();
-                i++;
-        }
-        catch (const MachineFailure& e) {
-            std::cout << "znowu to zrobil" << "\n";
-            i++;
-            working = false;
-//            terminated list
-        }
+        threads_to_wait_for[i].join();
+        i++;
     }
-
-
-    return working;
 }
 
-void System::work(const machines_t& owned_machines) {
+void System::work(const machines_t &owned_machines) {
     while (true) {
-        std::lock_guard<std::mutex> lock(mut_ordering_for_employees);
-
+        std::lock_guard<std::mutex> lock(mut_ordering_for_employees); // TODO: unique
         std::lock_guard<std::mutex> lock_ord(mut_ordering);
 
         std::pair<unsigned int, std::vector<std::string>> order = orders.front();
@@ -83,15 +93,14 @@ void System::work(const machines_t& owned_machines) {
         mut_ordering.unlock();
 
 
-        // zbieranie z maszyn produktow (zbieranie wyjatkow)
-        // ew zwrot produktow
-        bool all_collected = collect_products(threads_to_wait_for);
+        // zbieranie z maszyn produktow
+        collect_products(threads_to_wait_for);
 
-        if (!all_collected) {
-            // zmien flage na nieudana
-
-            return_products();
-        }
+//        if (!all_collected) { // TODO: sprwić czy ktorych to null jesli tak to trzeba zwrocic
+//            // zmien flage na nieudana
+//
+//            return_products();
+//        }
 
         // przygotuj posilek do odebrania lub informacje o niepowodzeniu
         // uwolnij klienta z wait
@@ -99,54 +108,3 @@ void System::work(const machines_t& owned_machines) {
         break; // tmp
     }
 }
-
-
-//void work(std::mutex& mut_ordering, std::mutex& mut_ordering_for_employees,
-//          std::list<std::pair<unsigned int, std::vector<std::string>>>& orders) {
-//
-//
-//    while (true) {
-//        std::lock_guard<std::mutex> lock(mut_ordering_for_employees);
-//
-//        std::lock_guard<std::mutex> lock_ord(mut_ordering);
-//
-//        std::pair<unsigned int, std::vector<std::string>> order = orders.front();
-//        orders.pop_front();
-//
-//        if (!orders.empty()) {
-//            mut_ordering_for_employees.unlock();
-//        }
-//
-//
-//        send_threads_to_machines(order.second);
-//        // wysłanie wątków do maszyn
-//
-//        mut_ordering.unlock();
-//
-//
-//        // zbieranie z maszyn produktow (zbieranie wyjatkow)
-//        // ew zwrot produktow
-//        bool all_collected = collect_products();
-////        std::vector<std::unique_ptr<Product>>
-//
-//        if (!all_collected) {
-//            // zmien flage na nieudana
-//
-//            return_products();
-//        }
-//
-//        // przygotuj posilek do odebrania lub informacje o niepowodzeniu
-//        // uwolnij klienta z wait
-//
-//        break; // tmp
-//    }
-//}
-
-
-
-
-
-
-
-
-

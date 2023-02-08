@@ -2,13 +2,13 @@
 
 
 std::vector<WorkerReport> System::shutdown() {
-    closed = true;
+    system_closed = true;
 
     return {};
 }
 
 std::vector<std::string> System::getMenu() const {
-    if (closed) {
+    if (system_closed) {
         return {};
     }
     std::vector<std::string> keys;
@@ -29,7 +29,7 @@ void System::check_products(const std::vector<std::string> &products) {
 }
 
 std::unique_ptr<CoasterPager> System::order(const std::vector<std::string>& products) {
-    if (closed) {
+    if (system_closed) {
         throw RestaurantClosedException();
     }
 

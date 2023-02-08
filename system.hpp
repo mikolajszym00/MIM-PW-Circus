@@ -8,37 +8,31 @@
 #include <future>
 #include <list>
 #include <map>
+//#include <utility>
 
 #include <iostream>
 
 #include "machine.hpp"
 
-class FulfillmentFailure : public std::exception
-{
+class FulfillmentFailure : public std::exception {
 };
 
-class OrderNotReadyException : public std::exception
-{
+class OrderNotReadyException : public std::exception {
 };
 
-class BadOrderException : public std::exception
-{
+class BadOrderException : public std::exception {
 };
 
-class BadPagerException : public std::exception
-{
+class BadPagerException : public std::exception {
 };
 
-class OrderExpiredException : public std::exception
-{
+class OrderExpiredException : public std::exception {
 };
 
-class RestaurantClosedException : public std::exception
-{
+class RestaurantClosedException : public std::exception {
 };
 
-struct WorkerReport
-{
+struct WorkerReport {
     std::vector<std::vector<std::string>> collectedOrders;
     std::vector<std::vector<std::string>> abandonedOrders;
     std::vector<std::vector<std::string>> failedOrders;
@@ -47,11 +41,9 @@ struct WorkerReport
 
 class System;
 
-class CoasterPager
-{
+class CoasterPager {
 public:
-    CoasterPager(unsigned int id, System& system) : id(id), system(system)
-    {
+    CoasterPager(unsigned int id, System &system) : id(id), system(system) {
         is_ready = false;
     }
 
@@ -67,25 +59,30 @@ private:
     unsigned int id;
     bool is_ready;
 
-    System& system; // czy & ma byc
+    System &system; // TODO: czy & ma byc
 };
 
-class System
-{
+class System {
 public:
-    typedef std::unordered_map<std::string, std::shared_ptr<Machine>> machines_t;
-    
-    System(machines_t machines, unsigned int numberOfWorkers, unsigned int clientTimeout) :
-        machines(std::move(machines)),
-        numberOfWorkers(numberOfWorkers),
-        clientTimeout(clientTimeout)
-        {
-            closed = false;
-            free_id = 0;
-            mut_ordering_for_employees.lock();
+    using product_recipient = std::mutex&;
+    using machine_controller = std::mutex&;
 
-            // stworzyc pracownikow i kontrolerow
-        }
+    typedef std::unordered_map<std::string, std::shared_ptr<Machine>> machines_t;
+    typedef std::unordered_map<std::string,
+    std::list<std::pair<product_recipient, machine_controller>>> map_queue_t;
+
+    System(machines_t machines, unsigned int numberOfWorkers, unsigned int clientTimeout) :
+            machines(std::move(machines)),
+            numberOfWorkers(numberOfWorkers),
+            clientTimeout(clientTimeout) {
+        system_closed = false;
+        free_id = 0;
+        mut_ordering_for_employees.lock();
+
+//        mut_production_for_controller[name].lock; // TODO: kazdey zablokowac
+
+        // TODO: stworzyc pracownikow i kontrolerow
+    }
 
 
     System();
@@ -96,7 +93,7 @@ public:
 
     std::vector<unsigned int> getPendingOrders() const;
 
-    std::unique_ptr<CoasterPager> order(const std::vector<std::string>& products); // 2
+    std::unique_ptr<CoasterPager> order(const std::vector<std::string> &products); // 2
 
     std::vector<std::unique_ptr<Product>> collectOrder(std::unique_ptr<CoasterPager> CoasterPager);
 
@@ -109,37 +106,41 @@ private:
     unsigned int numberOfWorkers;
     unsigned int clientTimeout;
 
-    bool closed;
+    std::atomic<bool> system_closed; // TODO: jak ochronic
     unsigned int free_id;
 
     std::mutex mut_ordering;
     std::mutex mut_ordering_for_employees;
 
+    std::unordered_map<std::string, std::mutex> mut_production; // TODO: jaki init
+    std::unordered_map<std::string, std::mutex> mut_production_for_controller; // TODO: jaki init
+
+    std::unordered_map<std::string, std::atomic<bool>> machine_closed;  // TODO: jak ochronic
+
+    map_queue_t queue_to_machine;
+
     std::list<std::pair<unsigned int, std::vector<std::string>>> orders;
-    std::map<unsigned int, std::mutex&> cp_mutex;
+    std::map<unsigned int, std::mutex &> cp_mutex;
 
     void check_products(const std::vector<std::string> &products);
 
     std::vector<std::thread> send_threads_to_machines(
-            std::unique_ptr<Product>* products,
-            const std::vector<std::string>& required_machines,
+            std::unique_ptr<Product> *products,
+            const std::vector<std::string> &required_machines,
             machines_t owned_machines);
 
-    void work(const machines_t& owned_machines);
+    void work(const machines_t &owned_machines);
 
-    void get_product_from_machine(std::unique_ptr<Product>&, const std::shared_ptr<Machine>&);
+    void pick_up_product(
+            std::mutex &mut_product_getter,
+            std::mutex &machine_controller,
+            std::unique_ptr<Product> &prod,
+            const std::string &name,
+            const std::shared_ptr<Machine> &machine);
 
-    bool collect_products(std::vector<std::thread> threads_to_wait_for);
+    void collect_products(std::vector<std::thread> threads_to_wait_for);
 
+    void supervise_the_machine(const std::string &name);
 };
 
 #endif // SYSTEM_HPP
-
-// 1 - zrobione pobieznie
-// 2 - zrobione lepiej
-// 3 - przemyslane wszsykie warianty
-// 4 - z testami
-// 5 - ostateczne
-
-
-
