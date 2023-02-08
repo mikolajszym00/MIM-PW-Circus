@@ -35,17 +35,31 @@ std::unique_ptr<CoasterPager> System::order(std::vector<std::string> products) {
 
     check_products(products);
 
-    // nadać numer zamowienia
-    std::unique_ptr<CoasterPager> cp = std::make_unique<CoasterPager>();
+    std::unique_ptr<CoasterPager> cp = std::make_unique<CoasterPager>(free_id, *this);
 
     std::lock_guard<std::mutex> lock(mut_ordering);
-    orders.push_back(std::make_pair(&cp, products));
+    orders.push_back(std::make_pair(free_id, products));
+
+    std::mutex mut;
+    mut.lock(); // system bierze mutexa, zwolni go dopiero gdy posiłek bedzie gotowy
+    // czy w przypadku wyjatkow to jest bezpieczne??
+    cp_mutex.insert({free_id, mut});
+
+//    std::this_thread::sleep_for(std::chrono::milliseconds(10000));
+//    std::cout << "wstalem system" << "\n";
+//    mut.unlock();
+
+    free_id++;
 
     if (orders.size() == 1) {
         mut_ordering_for_employees.unlock();
     }
 
-    mut_ordering.unlock();
+//    mut_ordering.unlock(); // guard zwolni mut_ordering??
 
-    return std::move(cp); // czy nie zdejmie ref z cp
+    return std::move(cp);
+}
+
+unsigned int System::getClientTimeout() const {
+    return clientTimeout;
 }

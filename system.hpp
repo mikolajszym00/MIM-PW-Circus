@@ -7,6 +7,9 @@
 #include <functional>
 #include <future>
 #include <list>
+#include <map>
+
+#include <iostream>
 
 #include "machine.hpp"
 
@@ -42,9 +45,13 @@ struct WorkerReport
     std::vector<std::string> failedProducts;
 };
 
+class System;
+
 class CoasterPager
 {
 public:
+    CoasterPager(unsigned int id, System& system) : id(id), system(system) {}
+
     void wait() const;
 
     void wait(unsigned int timeout) const;
@@ -52,6 +59,10 @@ public:
     [[nodiscard]] unsigned int getId() const;
 
     [[nodiscard]] bool isReady() const;
+
+private:
+    unsigned int id;
+    System& system; // czy & ma byc
 };
 
 class System
@@ -65,6 +76,7 @@ public:
         clientTimeout(clientTimeout)
         {
             closed = false;
+            free_id = 0;
         }
 
 
@@ -82,6 +94,7 @@ public:
 
     unsigned int getClientTimeout() const;
 
+    friend class CoasterPager;
 
 private:
     machines_t machines;
@@ -89,11 +102,13 @@ private:
     unsigned int clientTimeout;
 
     bool closed;
+    unsigned int free_id;
 
     std::mutex mut_ordering;
     std::mutex mut_ordering_for_employees;
 
-    std::list<std::pair<std::unique_ptr<CoasterPager>*, std::vector<std::string>>> orders;
+    std::list<std::pair<unsigned int, std::vector<std::string>>> orders;
+    std::map<unsigned int, std::mutex&> cp_mutex;
 
     void check_products(const std::vector<std::string> &products);
 };
