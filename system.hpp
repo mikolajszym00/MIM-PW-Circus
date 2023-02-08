@@ -117,6 +117,18 @@ private:
     std::map<unsigned int, std::mutex&> cp_mutex;
 
     void check_products(const std::vector<std::string> &products);
+
+    std::vector<std::thread> send_threads_to_machines(
+            std::unique_ptr<Product>* products,
+            const std::vector<std::string>& required_machines,
+            machines_t owned_machines);
+
+    void work(const machines_t& owned_machines);
+
+    void get_product_from_machine(std::unique_ptr<Product>&, const std::shared_ptr<Machine>&);
+
+    bool collect_products(std::vector<std::thread> threads_to_wait_for);
+
 };
 
 #endif // SYSTEM_HPP
