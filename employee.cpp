@@ -85,7 +85,7 @@ void System::work(const machines_t &owned_machines) {
             mut_ordering_for_employees.unlock();
         }
 
-        std::vector<std::unique_ptr<Product>> products; // TODO moze zmienic na wektor
+        std::vector<std::unique_ptr<Product>> products; // TODO czy działa jako wektor
         std::vector<std::thread> threads_to_wait_for = send_threads_to_machines(products, order.second, owned_machines);
 
         mut_ordering.unlock();
@@ -102,14 +102,16 @@ void System::work(const machines_t &owned_machines) {
         }
 
         if (all_delivered) {
-            std::unique_lock<std::mutex> lock_comp(mut_completed_meals);
+            std::unique_lock<std::mutex> lock_comp(mut_completed_meals); // TODO to bedzie bezpieczna mapa
             completed_meals.emplace(order.first, products);
             lock_comp.unlock();
 
+            orders_status[order.first] = Status::ready;
             mut_coaster_pager[order.first].unlock();
         }
         else {
-            // podnieś wyjątek na wait
+            orders_status[order.first] = Status::breakdown;
+            mut_coaster_pager[order.first].unlock();
 
 //            return_products();
         }

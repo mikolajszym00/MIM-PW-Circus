@@ -21,8 +21,20 @@ std::vector<std::string> System::getMenu() const {
     return keys;
 }
 
+std::vector<unsigned int> System::getPendingOrders() const {
+    std::vector<unsigned int> vec;
+
+    for (auto status: orders_status) {
+        if (status.second == Status::pending) {
+            vec.push_back(status.first);
+        }
+    }
+
+    return vec;
+}
+
 void System::check_products(const std::vector<std::string> &products) {
-    for (const std::string& s: products) { //sprawdzic czy maszyna dziala
+    for (const std::string& s: products) { // TODO sprawdzic czy maszyna dziala
         if (!machines.count(s))
             throw BadOrderException();
     }
@@ -39,6 +51,7 @@ std::unique_ptr<CoasterPager> System::order(const std::vector<std::string>& prod
     std::unique_ptr<CoasterPager> cp = std::make_unique<CoasterPager>(free_id, *this);
 
     orders.emplace_back(free_id, products);
+    orders_status[free_id] = Status::pending;
 
     std::mutex mut;
     mut.lock(); // system bierze mutexa, zwolni go dopiero gdy posiłek bedzie gotowy
@@ -63,11 +76,25 @@ std::unique_ptr<CoasterPager> System::order(const std::vector<std::string>& prod
 std::vector<std::unique_ptr<Product>> System::collectOrder(std::unique_ptr<CoasterPager> CoasterPager) {
     unsigned int id = CoasterPager->getId();
 
-    // wyjatki
+    if (orders_status.find(id) == orders_status.end()) {
+        throw BadPagerException();
+    }
 
-    std::unique_lock<std::mutex> lock_comp(mut_completed_meals);
+    if (orders_status[id] == Status::breakdown) {
+        throw FulfillmentFailure();
+    }
+
+    if (orders_status[id] == Status::pending) {
+        throw OrderNotReadyException();
+    }
+
+    std::unique_lock<std::mutex> lock_comp(mut_completed_meals); // TODO to bedzie bezpieczna mapa
     std::vector<std::unique_ptr<Product>> meal = completed_meals[id];
     lock_comp.unlock();
+
+    if (orders_status[id] == Status::expired) {
+        throw OrderExpiredException();
+    }
 
     return meal;
 }

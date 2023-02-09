@@ -4,9 +4,10 @@
 void CoasterPager::wait() const {
 
     system.mut_coaster_pager[id].lock(); // czy na pewno ma orginalnego mutexa
-    std::cout << "wstalem cp" << "\n";
 
-    // flaga czy sie powiodlo zamowienie
+    if (system.orders_status[id] == System::Status::breakdown) {
+        throw FulfillmentFailure();
+    }
 }
 
 [[nodiscard]] unsigned int CoasterPager::getId() const {

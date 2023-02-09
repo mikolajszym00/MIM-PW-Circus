@@ -53,7 +53,7 @@ public:
 
     [[nodiscard]] unsigned int getId() const;
 
-    [[nodiscard]] bool isReady() const;
+    [[nodiscard]] bool isReady() const; // TODO jest gotowe zamowienie ale czy poprawnie
 
 private:
     unsigned int id;
@@ -64,6 +64,8 @@ private:
 
 class System {
 public:
+    enum class Status { ready, pending, expired, breakdown }; // jeśli nie ma w bazie to oznacza ze odebrane
+
     using product_recipient = std::mutex &;
     using machine_controller = std::mutex &;
 
@@ -126,8 +128,8 @@ private:
     std::mutex mut_ordering;
     std::mutex mut_ordering_for_employees;
 
-    std::unordered_map<std::string, std::mutex> mut_production; // TODO: jaki init
-    std::unordered_map<std::string, std::mutex> mut_production_for_controller; // TODO: jaki init
+    std::unordered_map<std::string, std::mutex> mut_production;
+    std::unordered_map<std::string, std::mutex> mut_production_for_controller;
 
     std::mutex mut_completed_meals;
 
@@ -136,6 +138,8 @@ private:
     map_queue_t queue_to_machine;
 
     std::list<std::pair<unsigned int, std::vector<std::string>>> orders;
+    std::unordered_map<unsigned int, Status> orders_status;
+
     std::unordered_map<unsigned int, std::mutex &> mut_coaster_pager;
     std::unordered_map<unsigned int, std::vector<std::unique_ptr<Product>>> completed_meals;
 
