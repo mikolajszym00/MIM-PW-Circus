@@ -3,7 +3,8 @@
 
 void CoasterPager::wait() const {
 
-    system.mut_coaster_pager[id].lock(); // czy na pewno ma orginalnego mutexa
+//    system.mut_coaster_pager[id].lock(); // czy na pewno ma orginalnego mutexa
+    // powinien stac na condition czy gotowe
 
     if (system.orders_status[id] == System::Status::breakdown) {
         throw FulfillmentFailure();

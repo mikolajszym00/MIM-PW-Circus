@@ -73,49 +73,76 @@ void System::collect_products(std::vector<std::thread> threads_to_wait_for) {
     }
 }
 
-void System::work(const machines_t &owned_machines) {
+void System::work(const machines_t &owned_machines, unsigned int id_employee) {
     while (true) {
-        std::lock_guard<std::mutex> lock(mut_ordering_for_employees); // TODO unique
-        std::lock_guard<std::mutex> lock_ord(mut_ordering);
+        (void) id_employee;
+//        print("stoje przed mut dla emp: ", id_employee);
 
-        std::pair<unsigned int, std::vector<std::string>> order = orders.front();
+        std::unique_lock<std::mutex> lock_emp(mut_ordering_for_employees);
+
+//        std::cout << "przed wait: " << id_employee << " " << orders_num << " " << system_closed << '\n';
+
+
+        cv_ordering_for_employees.wait(lock_emp, [this] {
+            return (orders_num > 0 || system_closed);
+        });
+
+//        std::cout << "przekroczylem wait: " << id_employee << " " << orders_num << " " << system_closed << '\n';
+//        print("przekroczylem wait: ", id_employee);
+
+        std::unique_lock<std::mutex> lock(mut_ordering);
+        if (system_closed && orders.empty()) {
+            cv_ordering_for_employees.notify_one();
+//            lock_emp.unlock();
+//            lock.unlock();
+            return;
+        }
+
+//        std::cout << "za mut_ordering " << id_employee << ' ' << orders_num << '\n';
+//        print("za mut_ordering", id_employee);
+
+        std::pair<unsigned int, const std::vector<std::string>&> order = orders.front();
+        (void) order;
         orders.pop_front();
 
+        orders_num--;
+        lock_emp.unlock();
+
         if (!orders.empty()) {
-            mut_ordering_for_employees.unlock();
+//            mut_ordering_for_employees.unlock();
+            cv_ordering_for_employees.notify_one();
         }
-
-        std::vector<std::unique_ptr<Product>> products; // TODO czy działa jako wektor
-        std::vector<std::thread> threads_to_wait_for = send_threads_to_machines(products, order.second, owned_machines);
-
-        mut_ordering.unlock();
-
-        // zbieranie z maszyn produktow
-        collect_products(threads_to_wait_for);
-
-        // sprawdzenie czy są wszystkie produkty
-        bool all_delivered = true; // TODO wywalic do funkcji
-        for (std::unique_ptr<Product>& prod: products) {
-            if (!prod) {
-                all_delivered = false;
-            }
-        }
-
-        if (all_delivered) {
-            std::unique_lock<std::mutex> lock_comp(mut_completed_meals); // TODO to bedzie bezpieczna mapa
-            completed_meals.emplace(order.first, products);
-            lock_comp.unlock();
-
-            orders_status[order.first] = Status::ready;
-            mut_coaster_pager[order.first].unlock();
-        }
-        else {
-            orders_status[order.first] = Status::breakdown;
-            mut_coaster_pager[order.first].unlock();
-
-//            return_products();
-        }
-
-        break; // tmp
+//
+//        std::vector<std::unique_ptr<Product>> products; // TODO czy działa jako wektor
+//        std::vector<std::thread> threads_to_wait_for = send_threads_to_machines(products, order.second, owned_machines);
+//
+        (void) owned_machines;
+        lock.unlock();
+//
+//        // zbieranie z maszyn produktow
+//        collect_products(threads_to_wait_for);
+//
+//        // sprawdzenie czy są wszystkie produkty
+//        bool all_delivered = true; // TODO wywalic do funkcji
+//        for (std::unique_ptr<Product>& prod: products) {
+//            if (!prod) {
+//                all_delivered = false;
+//            }
+//        }
+//
+//        if (all_delivered) {
+//            std::unique_lock<std::mutex> lock_comp(mut_completed_meals); // TODO to bedzie bezpieczna mapa
+//            completed_meals.emplace(order.first, products);
+//            lock_comp.unlock();
+//
+//            orders_status[order.first] = Status::ready;
+//            mut_coaster_pager[order.first].unlock();
+//        }
+//        else {
+//            orders_status[order.first] = Status::breakdown;
+//            mut_coaster_pager[order.first].unlock();
+//
+////            return_products();
+//        }
     }
 }

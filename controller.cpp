@@ -2,9 +2,9 @@
 
 void System::supervise_the_machine(const std::string &name) {
 
+    return;
     while (true) {
         std::unique_lock<std::mutex> lock(mut_production_for_controller[name]);
-
         std::unique_lock<std::mutex> lock_prod(mut_production[name]);
 
         std::pair<product_recipient, machine_controller> mutexes = queue_to_machine[name].front();

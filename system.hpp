@@ -77,8 +77,15 @@ public:
             machines(std::move(machines)),
             numberOfWorkers(numberOfWorkers),
             clientTimeout(clientTimeout) {
+
+        system_closed = false;
+        free_id = 0;
+        orders_num = 0;
+
         for (const auto& machine: machines) { // create controllers
-            mut_production_for_controller[machine.first].lock();
+            machine.second->start();
+
+//            mut_production_for_controller[machine.first].lock();
 
             const std::string& name = machine.first;
             std::thread t{[this, name] { supervise_the_machine(name); }};
@@ -86,15 +93,12 @@ public:
             threads_controllers.push_back(std::move(t));
         }
 
-        mut_ordering_for_employees.lock();
+//        mut_ordering_for_employees.lock();
         for (unsigned int i = 0; i < numberOfWorkers; i++) { // create employees
-            std::thread t{[this, machines] { work(machines); }};
+            std::thread t{[this, machines, i] { work(machines, i); }};
 
             threads_employees.push_back(std::move(t));
         }
-
-        system_closed = false;
-        free_id = 0;
     }
 
 
@@ -115,9 +119,13 @@ public:
     friend class CoasterPager;
 
 private:
+    std::mutex mut_print;
+
     machines_t machines;
     unsigned int numberOfWorkers;
     unsigned int clientTimeout;
+
+    unsigned int orders_num;
 
     std::vector<std::thread> threads_controllers;
     std::vector<std::thread> threads_employees;
@@ -127,6 +135,8 @@ private:
 
     std::mutex mut_ordering;
     std::mutex mut_ordering_for_employees;
+    std::condition_variable cv_ordering_for_employees;
+
 
     std::unordered_map<std::string, std::mutex> mut_production;
     std::unordered_map<std::string, std::mutex> mut_production_for_controller;
@@ -134,10 +144,9 @@ private:
     std::mutex mut_completed_meals;
 
     std::unordered_map<std::string, std::atomic<bool>> machine_closed;  // TODO: jak ochronic
-
     map_queue_t queue_to_machine;
 
-    std::list<std::pair<unsigned int, std::vector<std::string>>> orders;
+    std::list<std::pair<unsigned int, const std::vector<std::string>&>> orders; // ma mutex, oczyszczana
     std::unordered_map<unsigned int, Status> orders_status;
 
     std::unordered_map<unsigned int, std::mutex &> mut_coaster_pager;
@@ -150,7 +159,7 @@ private:
             const std::vector<std::string> &required_machines,
             machines_t owned_machines);
 
-    void work(const machines_t &owned_machines);
+    void work(const machines_t &owned_machines, unsigned int id_employee);
 
     void pick_up_product(
             std::mutex &mut_product_getter,
@@ -162,6 +171,10 @@ private:
     void collect_products(std::vector<std::thread> threads_to_wait_for);
 
     void supervise_the_machine(const std::string &name);
+
+    void clean_after_order(unsigned int id);
+
+    void print(const std::string &s, unsigned int id);
 };
 
 #endif // SYSTEM_HPP
