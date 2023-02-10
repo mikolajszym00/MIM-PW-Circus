@@ -13,6 +13,7 @@
 #include <iostream>
 
 #include "machine.hpp"
+#include "concurrent_map.h"
 
 class FulfillmentFailure : public std::exception {
 };
@@ -73,7 +74,7 @@ public:
 
     typedef std::pair<std::pair<mut_secrity, cv_secrity>, bool> security;
 
-    typedef std::unordered_map<std::string, std::list<std::pair<security &, security &>>> map_queue_t;
+    typedef ConcurrentUnorderedMap<std::string, std::list<std::pair<security &, security &>>> map_queue_t;
 
     System(machines_t machines, unsigned int numberOfWorkers, unsigned int clientTimeout) :
             machines(std::move(machines)),
@@ -135,26 +136,28 @@ private:
     std::atomic<bool> employees_joined; // TODO: jak ochronic
     unsigned int free_id;
 
+    // order
     std::mutex mut_ordering;
     std::mutex mut_ordering_for_employees;
     std::condition_variable cv_ordering_for_employees;
     unsigned int orders_num;
 
-    std::unordered_map<std::string, std::mutex> mut_production;
-    std::unordered_map<std::string, std::mutex> mut_production_for_controller;
-    std::unordered_map<std::string, std::condition_variable> cv_production_for_controller;
-    std::unordered_map<std::string, unsigned int> queue_size;
+    // production
+    ConcurrentUnorderedMap<std::string, std::mutex> mut_production;
+    ConcurrentUnorderedMap<std::string, std::mutex> mut_production_for_controller;
+    ConcurrentUnorderedMap<std::string, std::condition_variable> cv_production_for_controller;
+    ConcurrentUnorderedMap<std::string, unsigned int> queue_size;
 
     std::mutex mut_completed_meals;
 
-    std::unordered_map<std::string, std::atomic<bool>> machine_closed;  // TODO: jak ochronic
+    ConcurrentUnorderedMap<std::string, std::atomic<bool>> machine_closed;  // TODO: jak ochronic
     map_queue_t queue_to_machine;
 
     std::list<std::pair<unsigned int, const std::vector<std::string>&>> orders; // ma mutex, oczyszczana
-    std::unordered_map<unsigned int, Status> orders_status;
+    ConcurrentUnorderedMap<unsigned int, Status> orders_status;
 
-    std::unordered_map<unsigned int, std::mutex &> mut_coaster_pager;
-    std::unordered_map<unsigned int, std::vector<std::unique_ptr<Product>>> completed_meals;
+    ConcurrentUnorderedMap<unsigned int, std::mutex &> mut_coaster_pager;
+    ConcurrentUnorderedMap<unsigned int, std::vector<std::unique_ptr<Product>>> completed_meals;
 
     void check_products(const std::vector<std::string> &products);
 

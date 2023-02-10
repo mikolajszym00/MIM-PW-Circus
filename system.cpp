@@ -52,11 +52,11 @@ std::vector<std::string> System::getMenu() const {
 std::vector<unsigned int> System::getPendingOrders() const {
     std::vector<unsigned int> vec;
 
-    for (auto status: orders_status) {
-        if (status.second == Status::pending) {
-            vec.push_back(status.first);
-        }
-    }
+//    for (auto status: orders_status) {
+//        if (status.second == Status::pending) {
+//            vec.push_back(status.first);
+//        }
+//    }
 
     return vec;
 }
@@ -117,7 +117,7 @@ void System::clean_after_order(unsigned int id) {
 std::vector<std::unique_ptr<Product>> System::collectOrder(std::unique_ptr<CoasterPager> CoasterPager) {
     unsigned int id = CoasterPager->getId();
 
-    if (orders_status.find(id) == orders_status.end()) {
+    if (orders_status.contains(id)) {
         throw BadPagerException();
     }
 

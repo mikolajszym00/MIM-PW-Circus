@@ -63,7 +63,7 @@ std::vector<std::thread> System::send_threads_to_machines(
 
         std::unique_lock<std::mutex> lock(mut_production[name]);
 
-        queue_to_machine[name].push_back({sec_recipient, sec_controller});
+        queue_to_machine[name].emplace_back(sec_recipient, sec_controller);
 
         {
             std::lock_guard<std::mutex> lock_controller(mut_production_for_controller[name]);
@@ -132,13 +132,16 @@ void System::work(const machines_t &owned_machines, unsigned int id_employee) {
         }
 
         std::vector<std::unique_ptr<Product>> products; // TODO czy działa jako wektor
-        std::vector<std::thread> threads_to_wait_for = send_threads_to_machines(products, order.second, owned_machines);
+        std::vector<std::thread> threads_to_wait_for = send_threads_to_machines(std::move(products),
+                                                                                order.second,
+                                                                                owned_machines); // nie wyciegne tych produktow
+
 
         (void) owned_machines;
         lock.unlock();
-//
-//        // zbieranie z maszyn produktow
-//        collect_products(threads_to_wait_for);
+
+        // zbieranie z maszyn produktow
+        collect_products(std::move(threads_to_wait_for));
 //
 //        // sprawdzenie czy są wszystkie produkty
 //        bool all_delivered = true; // TODO wywalic do funkcji
