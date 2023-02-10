@@ -66,12 +66,14 @@ class System {
 public:
     enum class Status { ready, pending, expired, breakdown }; // jeśli nie ma w bazie to oznacza ze odebrane
 
-    using product_recipient = std::mutex &;
-    using machine_controller = std::mutex &;
+    using mut_secrity = std::mutex &;
+    using cv_secrity = std::condition_variable &;
 
     typedef std::unordered_map<std::string, std::shared_ptr<Machine>> machines_t;
-    typedef std::unordered_map<std::string,
-            std::list<std::pair<product_recipient, machine_controller>>> map_queue_t;
+
+    typedef std::pair<std::pair<mut_secrity, cv_secrity>, bool> security;
+
+    typedef std::unordered_map<std::string, std::list<std::pair<security &, security &>>> map_queue_t;
 
     System(machines_t machines, unsigned int numberOfWorkers, unsigned int clientTimeout) :
             machines(std::move(machines)),
@@ -79,6 +81,7 @@ public:
             clientTimeout(clientTimeout) {
 
         system_closed = false;
+        employees_joined = false;
         free_id = 0;
         orders_num = 0;
 
@@ -125,21 +128,22 @@ private:
     unsigned int numberOfWorkers;
     unsigned int clientTimeout;
 
-    unsigned int orders_num;
-
     std::vector<std::thread> threads_controllers;
     std::vector<std::thread> threads_employees;
 
     std::atomic<bool> system_closed; // TODO: jak ochronic
+    std::atomic<bool> employees_joined; // TODO: jak ochronic
     unsigned int free_id;
 
     std::mutex mut_ordering;
     std::mutex mut_ordering_for_employees;
     std::condition_variable cv_ordering_for_employees;
-
+    unsigned int orders_num;
 
     std::unordered_map<std::string, std::mutex> mut_production;
     std::unordered_map<std::string, std::mutex> mut_production_for_controller;
+    std::unordered_map<std::string, std::condition_variable> cv_production_for_controller;
+    std::unordered_map<std::string, unsigned int> queue_size;
 
     std::mutex mut_completed_meals;
 
@@ -162,8 +166,8 @@ private:
     void work(const machines_t &owned_machines, unsigned int id_employee);
 
     void pick_up_product(
-            std::mutex &mut_product_getter,
-            std::mutex &machine_controller,
+            security &security_recipient,
+            security &security_controller,
             std::unique_ptr<Product> &prod,
             const std::string &name,
             const std::shared_ptr<Machine> &machine);

@@ -10,19 +10,25 @@ std::vector<WorkerReport> System::shutdown() {
     system_closed = true;
     cv_ordering_for_employees.notify_one();
 
-    // wylaczyc maszyny
-
     unsigned int i = 0;
+    while (i < threads_employees.size()) {
+        threads_employees[i].join();
+        i++;
+    }
+
+    employees_joined = true;
+
+    for (const auto& machine: machines) {
+        cv_production_for_controller[machine.first].notify_one();
+    }
+
+    i = 0;
     while (i < threads_controllers.size()) {
         threads_controllers[i].join();
         i++;
     }
 
-    i = 0;
-    while (i < threads_employees.size()) {
-        threads_employees[i].join();
-        i++;
-    }
+    // wylaczyc maszyny
 
     // zebranie raportow
 
