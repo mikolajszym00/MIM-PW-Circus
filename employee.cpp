@@ -1,69 +1,103 @@
 #include "system.hpp"
 
-void System::pick_up_product(
-        security &security_recipient,
-        security &security_controller,
-        std::unique_ptr<Product> &prod,
-        const std::string &name,
-        const std::shared_ptr<Machine> &machine) {
+void System::pick_up_product(unsigned int id_employee,
+                             std::pair<security, security> &se,
+                             std::unique_ptr<Product> &prod,
+                             const std::string &name,
+                             const std::shared_ptr<Machine> &machine) {
+//    (void ) id_employee;
+//    (void ) se;
+//    (void ) prod;
+//    (void) name;
+//    (void) machine;
+    security &security_recipient = se.first;
+    security &security_controller = se.second;
 
-    std::unique_lock<std::mutex> lock_recipient(security_recipient.first.first);
-    security_recipient.first.second.wait(lock_recipient, [&security_recipient] {
-        return (security_recipient.second);
+    std::unique_lock<std::mutex> lock_recipient(*security_recipient.first.first);
+    std::cout << "wa: czekam, " << name << ", przez: " << id_employee << "mozna: " << security_recipient.second << '\n';
+
+    std::this_thread::sleep_for(std::chrono::seconds(3));
+    security_recipient.first.second->wait(lock_recipient, [&security_recipient] {
+        return security_recipient.second;
     });
-
-    security_recipient.second = false; // TODO czy tak ma byc
+    security_recipient.second = false; // TODO czy tak ma byc, nie musi
 
     try {
-        prod = machine->getProduct();
+        std::cout << "wa: przeszedlem, " << name << ", przez: " << id_employee << '\n';
+        std::unique_ptr<Product> p = machine->getProduct(); // TODO promise i future??
+//        prod = static_cast<std::unique_ptr<Product, std::default_delete<Product>> &&>(p);
+//        (void) machine;
+        std::cout << "wa: wyprodukowano, " << name << ", przez: " << id_employee << '\n';
     }
     catch (const MachineFailure &e) {
         prod = nullptr;
-        machine_closed[name] = true; // TODO: cos na sprawdzenie tej zmiennej
+        machine_closed[name] = true;
     }
 
     lock_recipient.unlock();
 
     {
-        std::lock_guard<std::mutex> lock_controller(security_controller.first.first);
+        std::lock_guard<std::mutex> lock_controller(*security_controller.first.first);
         security_controller.second = true;
     }
-    security_controller.first.second.notify_one();
+
+    security_controller.first.second->notify_one();
+
+    std::cout << "wa: odchodze, przez: " << id_employee << '\n';
 }
 
-std::vector<std::thread> System::send_threads_to_machines(
-        std::vector<std::unique_ptr<Product>> products, // TODO: czy z wektorem bedzie dzialac
-        const std::vector<std::string> &required_machines,
-        machines_t owned_machines) {
+std::vector<std::thread> System::send_threads_to_machines(unsigned int id_employee,
+                                                          std::vector<std::unique_ptr<Product>> products, // TODO: czy z wektorem bedzie dzialac
+                                                          const std::vector<std::string> &required_machines,
+                                                          machines_t owned_machines) {
 
     std::vector<std::thread> threads_to_wait_for;
 
     unsigned int i = 0;
     for (const std::string &name: required_machines) {
-        std::mutex mut_product_recipient;
-        std::condition_variable cv_product_recipient;
+        std::cout << "p, name: " << name << " " << "przez: " << id_employee << " i: " << i << "\n";
 
-        security sec_recipient = {{mut_product_recipient, cv_product_recipient}, false};
+//        std::mutex mut_product_recipient;
+//        std::condition_variable cv_product_recipient;
 
-        std::mutex mut_machine_controller;
-        std::condition_variable cv_machine_controller;
 
-        security sec_controller = {{mut_machine_controller, cv_machine_controller}, false};
+//        security sec_recipient = {std::make_pair(std::move(mut_product_recipient),
+//                                                 std::move(cv_product_recipient)), false};
 
-        std::thread t{[&sec_recipient, &sec_controller, this, i, &products, name, &owned_machines] {
-            pick_up_product(sec_recipient,
-                            sec_controller,
-                            products[i],
-                            name,
-                            owned_machines[name]);
-        }};
+//        security sec_recipient;
+//        sec_recipient.second = false;
+//
+//        security sec_controller;
+//        sec_controller.second = false;
+
+//        std::mutex mut_machine_controller;
+//        std::condition_variable cv_machine_controller;
+
+//        security sec_controller = {{mut_machine_controller, cv_machine_controller}, false};
 
         // sprawdzic czy maszyna dziala
 
+//        std::cout << "za mut_ordering " << id_employee << ' ' << orders_num << '\n';
 
         std::unique_lock<std::mutex> lock(mut_production[name]);
 
-        queue_to_machine[name].emplace_back(sec_recipient, sec_controller);
+        std::cout << "p: mut_prod passed " << "maszyna: " << name << " " << "pracownik: " << id_employee << " i: " << i
+                  << "\n";
+
+        std::pair<security, security> se;
+        se.first.second = false;
+        se.second.second = false;
+
+        queue_to_machine[name].emplace_back(std::move(se));
+
+        std::thread t{[id_employee, this, i, &products, name, &owned_machines] {
+            pick_up_product(
+                    id_employee,
+                    queue_to_machine[name].back(),
+                    products[i],
+                    name,
+                    owned_machines[name]);
+        }};
 
         {
             std::lock_guard<std::mutex> lock_controller(mut_production_for_controller[name]);
@@ -79,6 +113,7 @@ std::vector<std::thread> System::send_threads_to_machines(
 
         threads_to_wait_for.push_back(std::move(t));
         i++;
+//        std::this_thread::sleep_for(std::chrono::seconds(3));
     }
 
     return threads_to_wait_for;
@@ -86,6 +121,7 @@ std::vector<std::thread> System::send_threads_to_machines(
 
 void System::collect_products(std::vector<std::thread> threads_to_wait_for) {
     unsigned int i = 0;
+
 
     while (i < threads_to_wait_for.size()) {
         threads_to_wait_for[i].join();
@@ -95,7 +131,6 @@ void System::collect_products(std::vector<std::thread> threads_to_wait_for) {
 
 void System::work(const machines_t &owned_machines, unsigned int id_employee) {
     while (true) {
-        (void) id_employee;
 //        print("stoje przed mut dla emp: ", id_employee);
 
         std::unique_lock<std::mutex> lock_emp(mut_ordering_for_employees);
@@ -113,14 +148,15 @@ void System::work(const machines_t &owned_machines, unsigned int id_employee) {
         std::unique_lock<std::mutex> lock(mut_ordering);
         if (system_closed && orders.empty()) {
             cv_ordering_for_employees.notify_one();
+            std::cout << "e: umieram" << '\n';
             return;
         }
 
-//        std::cout << "za mut_ordering " << id_employee << ' ' << orders_num << '\n';
+        std::cout << "za mut_ordering " << id_employee << ' ' << orders_num << " orders size: " << orders.size()
+                  << '\n';
 //        print("za mut_ordering", id_employee);
 
-        std::pair<unsigned int, const std::vector<std::string> &> order = orders.front();
-        (void) order;
+        std::pair<unsigned int, std::vector<std::string>> order = orders.front();
         orders.pop_front();
 
         orders_num--;
@@ -130,18 +166,20 @@ void System::work(const machines_t &owned_machines, unsigned int id_employee) {
 //            mut_ordering_for_employees.unlock();
             cv_ordering_for_employees.notify_one();
         }
-
+//        (void) order;
         std::vector<std::unique_ptr<Product>> products; // TODO czy działa jako wektor
-        std::vector<std::thread> threads_to_wait_for = send_threads_to_machines(std::move(products),
+        std::vector<std::thread> threads_to_wait_for = send_threads_to_machines(id_employee,
+                                                                                std::move(products),
                                                                                 order.second,
                                                                                 owned_machines); // nie wyciegne tych produktow
 
-
-        (void) owned_machines;
+//        std::cout << "ok " << '\n';
         lock.unlock();
-
+//        std::cout << "ok " << '\n';
         // zbieranie z maszyn produktow
         collect_products(std::move(threads_to_wait_for));
+
+        std::cout << "tak" << "\n";
 //
 //        // sprawdzenie czy są wszystkie produkty
 //        bool all_delivered = true; // TODO wywalic do funkcji

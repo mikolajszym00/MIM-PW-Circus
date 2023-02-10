@@ -3,6 +3,7 @@
 void System::supervise_the_machine(const std::string &name) {
     while (true) {
         std::unique_lock<std::mutex> lock(mut_production_for_controller[name]);
+        std::cout << "kontroler: mut_prod czekam: " << name  << '\n';
 
         cv_production_for_controller[name].wait(lock, [this, name] {
             return (queue_size[name] > 0 || employees_joined);
@@ -10,35 +11,46 @@ void System::supervise_the_machine(const std::string &name) {
 
         std::unique_lock<std::mutex> lock_prod(mut_production[name]);
 
-        if (system_closed && queue_to_machine.empty()) {
+        if (employees_joined && queue_to_machine[name].empty()) {
+            std::cout << "k: umieram" << queue_to_machine[name].size()<< '\n';
             return;
         }
 
-        std::pair<security &, security &> securities = queue_to_machine[name].front();
-        queue_to_machine[name].pop_front();
+        std::cout << "queuesize: " << queue_to_machine[name].size() << '\n';
+        std::pair<security, security> &securities = queue_to_machine[name].front();
+//        queue_to_machine[name].pop_front();
 
         security &sec_recipient = securities.first;
         security &sec_controller = securities.second;
 
         {
-            std::lock_guard<std::mutex> lock_recipient(sec_recipient.first.first);
+            std::cout <<  "czy zgoda: " << sec_recipient.second << "\n";
+            std::lock_guard<std::mutex> lock_recipient(*(sec_recipient.first.first));
             sec_recipient.second = true;
+            std::cout << "kontroler: zezwol na produkcje: " << name  << '\n';
         }
-        sec_recipient.first.second.notify_one();
+        sec_recipient.first.second->notify_one();
 
         // wątek jakiegoś pracownika wywołuje getProduct
 
-        std::unique_lock<std::mutex> lock_controller(sec_controller.first.first);
-        sec_controller.first.second.wait(lock_controller, [&sec_controller] { // TODO czy tu &
+        std::unique_lock<std::mutex> lock_controller(*sec_controller.first.first);
+        sec_controller.first.second->wait(lock_controller, [&sec_controller] { // TODO czy tu &
             return (sec_controller.second);
         });
 
-        sec_controller.second = false;
+        sec_controller.second = false; // to juz nie jest potrzebne
+        lock_controller.unlock(); // to juz nie jest potrzebne
+
+        queue_to_machine[name].pop_front(); // nie moze usunac danemu watkowi zanim on nie powie ze skonczyl
+        queue_size[name]--;
+
+        std::cout << "kontroler: produkcja zakonczona: " << name  << '\n';
 
         if (!queue_to_machine[name].empty()) {
             cv_production_for_controller[name].notify_one();
         }
 
+        lock.unlock(); // czy to ma byc
         lock_prod.unlock();
     }
 }

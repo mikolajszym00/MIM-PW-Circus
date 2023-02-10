@@ -8,6 +8,7 @@
 #include <future>
 #include <list>
 #include <map>
+#include <deque>
 //#include <utility>
 
 #include <iostream>
@@ -65,46 +66,43 @@ private:
 
 class System {
 public:
-    enum class Status { ready, pending, expired, breakdown }; // jeśli nie ma w bazie to oznacza ze odebrane
+    enum class Status {
+        ready, pending, expired, breakdown
+    }; // jeśli nie ma w bazie to oznacza ze odebrane
 
-    using mut_secrity = std::mutex &;
-    using cv_secrity = std::condition_variable &;
+    using mut_secrity = std::shared_ptr<std::mutex>;
+    using cv_secrity = std::shared_ptr<std::condition_variable>;
 
     typedef std::unordered_map<std::string, std::shared_ptr<Machine>> machines_t;
 
     typedef std::pair<std::pair<mut_secrity, cv_secrity>, bool> security;
 
-    typedef ConcurrentUnorderedMap<std::string, std::list<std::pair<security &, security &>>> map_queue_t;
+    typedef ConcurrentUnorderedMap<std::string, std::deque<std::pair<security, security>>> map_queue_t;
 
     System(machines_t machines, unsigned int numberOfWorkers, unsigned int clientTimeout) :
             machines(std::move(machines)),
             numberOfWorkers(numberOfWorkers),
-            clientTimeout(clientTimeout) {
+            clientTimeout(clientTimeout),
+            system_closed(false),
+            employees_joined(false),
+            free_id(0),
+            orders_num(0) {
 
-        system_closed = false;
-        employees_joined = false;
-        free_id = 0;
-        orders_num = 0;
-
-        for (const auto& machine: machines) { // create controllers
+        for (const auto &machine: this->machines) { // create controllers
             machine.second->start();
 
-//            mut_production_for_controller[machine.first].lock();
-
-            const std::string& name = machine.first;
+            const std::string &name = machine.first;
             std::thread t{[this, name] { supervise_the_machine(name); }};
 
             threads_controllers.push_back(std::move(t));
         }
 
-//        mut_ordering_for_employees.lock();
         for (unsigned int i = 0; i < numberOfWorkers; i++) { // create employees
-            std::thread t{[this, machines, i] { work(machines, i); }};
+            std::thread t{[this, i] { work(this->machines, i); }};
 
             threads_employees.push_back(std::move(t));
         }
     }
-
 
     System() = default;
 
@@ -125,7 +123,7 @@ public:
 private:
     std::mutex mut_print;
 
-    machines_t machines;
+    machines_t machines; // TODO czy to nie powinna byc mapa
     unsigned int numberOfWorkers;
     unsigned int clientTimeout;
 
@@ -153,7 +151,7 @@ private:
     ConcurrentUnorderedMap<std::string, std::atomic<bool>> machine_closed;  // TODO: jak ochronic
     map_queue_t queue_to_machine;
 
-    std::list<std::pair<unsigned int, const std::vector<std::string>&>> orders; // ma mutex, oczyszczana
+    std::list<std::pair<unsigned int, std::vector<std::string>>> orders; // ma mutex, oczyszczana
     ConcurrentUnorderedMap<unsigned int, Status> orders_status;
 
     ConcurrentUnorderedMap<unsigned int, std::mutex &> mut_coaster_pager;
@@ -161,19 +159,18 @@ private:
 
     void check_products(const std::vector<std::string> &products);
 
-    std::vector<std::thread> send_threads_to_machines(
-            std::vector<std::unique_ptr<Product>> products,
-            const std::vector<std::string> &required_machines,
-            machines_t owned_machines);
+    std::vector<std::thread> send_threads_to_machines(unsigned int id_employee,
+                                                      std::vector<std::unique_ptr<Product>> products,
+                                                      const std::vector<std::string> &required_machines,
+                                                      machines_t owned_machines);
 
     void work(const machines_t &owned_machines, unsigned int id_employee);
 
-    void pick_up_product(
-            security &security_recipient,
-            security &security_controller,
-            std::unique_ptr<Product> &prod,
-            const std::string &name,
-            const std::shared_ptr<Machine> &machine);
+    void pick_up_product(unsigned int id_employee,
+                         std::pair<security, security> &se,
+                         std::unique_ptr<Product> &prod,
+                         const std::string &name,
+                         const std::shared_ptr<Machine> &machine);
 
     void collect_products(std::vector<std::thread> threads_to_wait_for);
 

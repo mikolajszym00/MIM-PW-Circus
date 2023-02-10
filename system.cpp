@@ -9,6 +9,7 @@ void System::print(const std::string &s, unsigned int id) {
 std::vector<WorkerReport> System::shutdown() {
     system_closed = true;
     cv_ordering_for_employees.notify_one();
+    std::cout << "zamykamy" << '\n';
 
     unsigned int i = 0;
     while (i < threads_employees.size()) {
@@ -28,7 +29,9 @@ std::vector<WorkerReport> System::shutdown() {
         i++;
     }
 
-    // wylaczyc maszyny
+    for (const auto &machine: machines) { // stops machines
+        machine.second->stop();
+    }
 
     // zebranie raportow
 
