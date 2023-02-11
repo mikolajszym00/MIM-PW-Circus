@@ -79,13 +79,6 @@ std::unique_ptr<CoasterPager> System::order(const std::vector<std::string>& prod
     orders.emplace_back(free_id, products);
     orders_status[free_id] = Status::pending;
 
-//    std::mutex mut;
-//    mut.lock(); // system bierze mutexa, zwolni go dopiero gdy posiłek bedzie gotowy
-    // czy w przypadku wyjatkow to jest bezpieczne??
-
-
-//    mut_coaster_pager.insert({free_id, mut});
-
 //    print("free_id dodano: ", free_id);
     free_id++;
 

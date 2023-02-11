@@ -80,6 +80,8 @@ public:
 
     typedef ConcurrentUnorderedMap<std::string, std::deque<std::pair<security, security>>> map_queue_t;
 
+    typedef std::vector<std::unique_ptr<Product>> unique_products_t;
+
     System(machines_t machines, unsigned int numberOfWorkers, unsigned int clientTimeout) :
             machines(std::move(machines)),
             numberOfWorkers(numberOfWorkers),
@@ -159,6 +161,11 @@ private:
     ConcurrentUnorderedMap<std::string, std::condition_variable> cv_controller;
     ConcurrentUnorderedMap<std::string, bool> bool_controller;
 
+    // coaster pager
+    ConcurrentUnorderedMap<unsigned int, std::mutex> mut_coaster_pager;
+    ConcurrentUnorderedMap<unsigned int, std::condition_variable> cv_coaster_pager;
+    ConcurrentUnorderedMap<unsigned int, bool> bool_coaster_pager;
+
     std::mutex mut_completed_meals;
 
     ConcurrentUnorderedMap<std::string, std::atomic<bool>> machine_closed;  // TODO: jak ochronic
@@ -167,8 +174,8 @@ private:
     std::list<std::pair<unsigned int, std::vector<std::string>>> orders; // ma mutex, oczyszczana
     ConcurrentUnorderedMap<unsigned int, Status> orders_status;
 
-    ConcurrentUnorderedMap<unsigned int, std::mutex &> mut_coaster_pager;
-    ConcurrentUnorderedMap<unsigned int, std::vector<std::unique_ptr<Product>>> completed_meals;
+
+    ConcurrentUnorderedMap<unsigned int, unique_products_t> completed_meals;
 
     void check_products(const std::vector<std::string> &products);
 
@@ -186,14 +193,13 @@ private:
                          const std::string &name,
                          std::shared_ptr<Machine> &machine);
 
-    void collect_products(std::vector<std::thread> threads_to_wait_for,
-                          std::vector<std::future<std::unique_ptr<Product>>> futures);
+    unique_products_t collect_products(std::vector<std::thread> threads_to_wait_for,
+                                                           std::vector<std::future<std::unique_ptr<Product>>> futures);
 
     void supervise_the_machine(const std::string &name);
 
     void clean_after_order(unsigned int id);
 
-    void print(const std::string &s, unsigned int id);
 };
 
 #endif // SYSTEM_HPP

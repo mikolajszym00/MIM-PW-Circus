@@ -27,15 +27,9 @@ void System::pick_up_product(unsigned int id_employee,
     try {
 //        std::cout << "wa: przeszedlem, " << name << ", przez: " << id_employee << '\n';
 //        (void ) machine;
-//        std::unique_ptr<Product>
 //        (void) promise;
-
-
 //        std::this_thread::sleep_for(std::chrono::seconds(3));
-//        machine->getProduct();
         promise.set_value(machine->getProduct());
-//        prod = static_cast<std::unique_ptr<Product, std::default_delete<Product>> &&>(p);
-//        (void) machine;
 //        std::cout << "wa: wyprodukowano, " << name << ", przez: " << id_employee << '\n';
     }
     catch (const MachineFailure &e) {
@@ -85,18 +79,9 @@ std::vector<std::thread> System::send_threads_to_machines(unsigned int id_employ
 //        std::cout << "p: mut_prod passed " << "maszyna: " << name << " " << "pracownik: " << id_employee << " i: " << i
 //                  << "\n";
 
-
-//        lock.unlock();
-//        std::pair<security, security> se;
-//        se.first.second = false;
-//        se.second.second = false;
-
-//        queue_to_machine[name].emplace_back(std::move(se));
-
         std::thread t{[id_employee, this, i, &promises, name, &owned_machines] {
             pick_up_product(
                     id_employee,
-//                    queue_to_machine[name].back(),
                     promises[i],
                     name,
                     owned_machines[name]);
@@ -122,15 +107,18 @@ std::vector<std::thread> System::send_threads_to_machines(unsigned int id_employ
     return threads_to_wait_for;
 }
 
-void System::collect_products(std::vector<std::thread> threads_to_wait_for,
-                              std::vector<std::future<std::unique_ptr<Product>>> futures) {
-    unsigned int i = 0;
+System::unique_products_t System::collect_products(std::vector<std::thread> threads_to_wait_for,
+                                                   std::vector<std::future<std::unique_ptr<Product>>> futures) {
+    unique_products_t products;
 
+    unsigned int i = 0;
     while (i < threads_to_wait_for.size()) {
-        futures[i].get();
+        products.push_back(futures[i].get());
         threads_to_wait_for[i].join();
         i++;
     }
+
+    return products;
 }
 
 void System::work(machines_t &owned_machines, unsigned int id_employee) {
@@ -183,33 +171,27 @@ void System::work(machines_t &owned_machines, unsigned int id_employee) {
         lock.unlock();
 //        std::cout << "p: czekam az zrobia " << '\n';
         // zbieranie z maszyn produktow
-        collect_products(std::move(threads_to_wait_for), std::move(futures));
+        unique_products_t products = collect_products(std::move(threads_to_wait_for), std::move(futures));
 
-//        futures[i].get(); // przed join było w pliku
+        std::cout << "tak" << "\n";
 
-//        std::cout << "tak" << "\n";
-//
-//        // sprawdzenie czy są wszystkie produkty
-//        bool all_delivered = true; // TODO wywalic do funkcji
-//        for (std::unique_ptr<Product>& prod: products) {
-//            if (!prod) {
-//                all_delivered = false;
-//            }
-//        }
-//
-//        if (all_delivered) {
-//            std::unique_lock<std::mutex> lock_comp(mut_completed_meals); // TODO to bedzie bezpieczna mapa
-//            completed_meals.emplace(order.first, products);
-//            lock_comp.unlock();
-//
-//            orders_status[order.first] = Status::ready;
-//            mut_coaster_pager[order.first].unlock();
-//        }
-//        else {
-//            orders_status[order.first] = Status::breakdown;
-//            mut_coaster_pager[order.first].unlock();
-//
-////            return_products();
-//        }
+        // sprawdzenie czy są wszystkie produkty
+        bool all_delivered = true;
+        for (std::unique_ptr<Product> &prod: products) {
+            if (!prod) {
+                all_delivered = false;
+            }
+        }
+
+        if (all_delivered) {
+            completed_meals[order.first] = products;
+
+            orders_status[order.first] = Status::ready;
+        } else {
+            orders_status[order.first] = Status::breakdown;
+        }
+
+        bool_coaster_pager[order.first] = true; // nie trzeba lock guarda ?
+        cv_coaster_pager[order.first].notify_one();
     }
 }

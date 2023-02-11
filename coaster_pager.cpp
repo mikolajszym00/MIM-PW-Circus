@@ -3,8 +3,11 @@
 
 void CoasterPager::wait() const {
 
-//    system.mut_coaster_pager[id].lock(); // czy na pewno ma orginalnego mutexa
-    // powinien stac na condition czy gotowe
+    std::unique_lock<std::mutex> lock(system.mut_coaster_pager[id]);
+
+    system.cv_coaster_pager[id].wait(lock, [this] {
+        return system.bool_coaster_pager[id];
+    });
 
     if (system.orders_status[id] == System::Status::breakdown) {
         throw FulfillmentFailure();
@@ -18,10 +21,3 @@ void CoasterPager::wait() const {
 [[nodiscard]] bool CoasterPager::isReady() const {
     return is_ready;
 }
-
-
-
-
-
-
-
