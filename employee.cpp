@@ -1,14 +1,15 @@
 #include "system.hpp"
 
 void System::pick_up_product(unsigned int id_employee,
-//                             std::pair<security, security> &se,
                              std::promise<std::unique_ptr<Product>> &promise,
                              const std::string &name,
                              std::shared_ptr<Machine> &machine) {
-//    security &security_recipient = se.first;
-//    security &security_controller = se.second;
 
     (void) id_employee;
+
+//    if (id_employee%2 == 0) {
+//        std::this_thread::sleep_for(std::chrono::seconds(1));
+//    }
 
     // tu watki moga zostac wyprzedzone
     std::unique_lock<std::mutex> lock_recipient(mut_recipient[name]);
@@ -173,7 +174,7 @@ void System::work(machines_t &owned_machines, unsigned int id_employee) {
         // zbieranie z maszyn produktow
         unique_products_t products = collect_products(std::move(threads_to_wait_for), std::move(futures));
 
-        std::cout << "tak" << "\n";
+//        std::cout << "tak" << "\n";
 
         // sprawdzenie czy są wszystkie produkty
         bool all_delivered = true;
@@ -184,7 +185,7 @@ void System::work(machines_t &owned_machines, unsigned int id_employee) {
         }
 
         if (all_delivered) {
-            completed_meals[order.first] = products;
+            completed_meals[order.first] = std::move(products);
 
             orders_status[order.first] = Status::ready;
         } else {

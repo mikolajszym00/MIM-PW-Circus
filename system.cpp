@@ -107,7 +107,7 @@ void System::clean_after_order(unsigned int id) {
 std::vector<std::unique_ptr<Product>> System::collectOrder(std::unique_ptr<CoasterPager> CoasterPager) {
     unsigned int id = CoasterPager->getId();
 
-    if (orders_status.contains(id)) {
+    if (!orders_status.contains(id)) {
         throw BadPagerException();
     }
 
@@ -119,9 +119,7 @@ std::vector<std::unique_ptr<Product>> System::collectOrder(std::unique_ptr<Coast
         throw OrderNotReadyException();
     }
 
-    std::unique_lock<std::mutex> lock_comp(mut_completed_meals); // TODO to bedzie bezpieczna mapa
-    std::vector<std::unique_ptr<Product>> meal = std::move(completed_meals[id]);
-    lock_comp.unlock();
+    unique_products_t meal = std::move(completed_meals[id]);
 
     if (orders_status[id] == Status::expired) { // todo sprawdzac czas wzgledem wydania i dopiero potem zmieniac status
         throw OrderExpiredException();

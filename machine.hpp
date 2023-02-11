@@ -4,6 +4,7 @@
 #include <exception>
 #include <memory>
 #include <thread>
+#include <utility>
 
 class MachineFailure : public std::exception
 {
@@ -20,10 +21,12 @@ class BadProductException : public std::exception
 class Product
 {
 public:
-    Product() = default;
+    explicit Product(std::string name) : name(std::move(name)) {};
     Product(const Product&) = delete;
     Product& operator=(const Product&) = delete;
     virtual ~Product() = default;
+
+    std::string name;
 };
 
 class Machine
