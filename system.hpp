@@ -74,6 +74,7 @@ public:
     using cv_secrity = std::shared_ptr<std::condition_variable>;
 
     typedef std::unordered_map<std::string, std::shared_ptr<Machine>> machines_t;
+//    typedef std::unordered_map<std::string, std::shared_ptr<Machine>> machines_t_stare;
 
     typedef std::pair<std::pair<mut_secrity, cv_secrity>, bool> security;
 
@@ -87,6 +88,10 @@ public:
             employees_joined(false),
             free_id(0),
             orders_num(0) {
+
+//        for (const auto &machine: machines) {
+//            machines[machine.first] = machine.second;
+//        }
 
         for (const auto &machine: this->machines) { // create controllers
             machine.second->start();
@@ -146,6 +151,14 @@ private:
     ConcurrentUnorderedMap<std::string, std::condition_variable> cv_production_for_controller;
     ConcurrentUnorderedMap<std::string, unsigned int> queue_size;
 
+    // communication recipient-controller
+    ConcurrentUnorderedMap<std::string, std::mutex> mut_recipient;
+    ConcurrentUnorderedMap<std::string, std::condition_variable> cv_recipient;
+    ConcurrentUnorderedMap<std::string, bool> bool_recipient;
+    ConcurrentUnorderedMap<std::string, std::mutex> mut_controller;
+    ConcurrentUnorderedMap<std::string, std::condition_variable> cv_controller;
+    ConcurrentUnorderedMap<std::string, bool> bool_controller;
+
     std::mutex mut_completed_meals;
 
     ConcurrentUnorderedMap<std::string, std::atomic<bool>> machine_closed;  // TODO: jak ochronic
@@ -160,19 +173,21 @@ private:
     void check_products(const std::vector<std::string> &products);
 
     std::vector<std::thread> send_threads_to_machines(unsigned int id_employee,
-                                                      std::vector<std::unique_ptr<Product>> products,
+                                                      std::vector<std::future<std::unique_ptr<Product>>> &futures,
+                                                      std::vector<std::promise<std::unique_ptr<Product>>> &promises,
                                                       const std::vector<std::string> &required_machines,
-                                                      machines_t owned_machines);
+                                                      machines_t &owned_machines);
 
-    void work(const machines_t &owned_machines, unsigned int id_employee);
+    void work(machines_t &owned_machines, unsigned int id_employee);
 
     void pick_up_product(unsigned int id_employee,
-                         std::pair<security, security> &se,
-                         std::unique_ptr<Product> &prod,
+//                         std::pair<security, security> &se,
+                         std::promise<std::unique_ptr<Product>> &promise,
                          const std::string &name,
-                         const std::shared_ptr<Machine> &machine);
+                         std::shared_ptr<Machine> &machine);
 
-    void collect_products(std::vector<std::thread> threads_to_wait_for);
+    void collect_products(std::vector<std::thread> threads_to_wait_for,
+                          std::vector<std::future<std::unique_ptr<Product>>> futures);
 
     void supervise_the_machine(const std::string &name);
 

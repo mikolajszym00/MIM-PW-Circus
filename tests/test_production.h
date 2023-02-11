@@ -134,4 +134,5 @@ public:
 
 void test_production_no_collecting();
 
+void test_production_no_collecting2();
 #endif //TEST_PRODUCTION_H

@@ -1,22 +1,16 @@
 #include "system.hpp"
 
-
-void System::print(const std::string &s, unsigned int id) {
-    std::lock_guard<std::mutex> lock(mut_print);
-    std::cout << s << id << "\n";
-}
-
 std::vector<WorkerReport> System::shutdown() {
     system_closed = true;
     cv_ordering_for_employees.notify_one();
-    std::cout << "zamykamy" << '\n';
+//    std::cout << "zamykamy" << '\n';
 
     unsigned int i = 0;
     while (i < threads_employees.size()) {
         threads_employees[i].join();
         i++;
     }
-
+//    std::cout << "emplo joinde" << '\n';
     employees_joined = true;
 
     for (const auto& machine: machines) {
@@ -78,7 +72,7 @@ std::unique_ptr<CoasterPager> System::order(const std::vector<std::string>& prod
         throw RestaurantClosedException();
     }
 
-    check_products(products);
+//    check_products(products);
 
     std::unique_ptr<CoasterPager> cp = std::make_unique<CoasterPager>(free_id, *this);
 
