@@ -10,6 +10,7 @@
 #include <map>
 #include <deque>
 //#include <utility>
+using namespace std::chrono_literals;
 
 #include <iostream>
 
@@ -67,7 +68,7 @@ private:
 class System {
 public:
     enum class Status {
-        ready, pending, expired, breakdown
+        ready, pending, expired, breakdown, collected
     }; // jeśli nie ma w bazie to oznacza ze odebrane
 
     using mut_secrity = std::shared_ptr<std::mutex>;
@@ -176,6 +177,10 @@ private:
 
 
     ConcurrentUnorderedMap<unsigned int, unique_products_t> completed_meals;
+
+    ConcurrentUnorderedMap<unsigned int, long long> ordered_time;
+
+    long long get_curr_time_in_millis();
 
     void check_products(const std::vector<std::string> &products);
 

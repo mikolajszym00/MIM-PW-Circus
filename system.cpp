@@ -1,5 +1,14 @@
 #include "system.hpp"
 
+long long System::get_curr_time_in_millis() {
+    std::chrono::time_point<std::chrono::system_clock> now =
+            std::chrono::system_clock::now();
+    auto duration = now.time_since_epoch();
+    auto millis = std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();
+
+    return millis;
+}
+
 std::vector<WorkerReport> System::shutdown() {
     system_closed = true;
 
@@ -122,21 +131,16 @@ std::vector<std::unique_ptr<Product>> System::collectOrder(std::unique_ptr<Coast
         throw OrderNotReadyException();
     }
 
+    bool changed = orders_status.check_and_change(id, Status::ready, Status::collected);
+
+    if (!changed) {
+        clean_after_order(id);
+        throw OrderExpiredException();
+    }
+
     unique_products_t meal = std::move(completed_meals[id]);
 
-    // odczytaj czas umieszczenia + clientTimeout > akt czas) {
-//    throw OrderExpiredException();
-    // zmienna czy expired na true
-//}
-    //powiadom pracownika
-
-
-//    if (orders_status[id] == Status::expired) { // todo sprawdzac czas wzgledem wydania i dopiero potem zmieniac status
-//        throw OrderExpiredException();
-//    }
-
     clean_after_order(id);
-
     return meal;
 }
 

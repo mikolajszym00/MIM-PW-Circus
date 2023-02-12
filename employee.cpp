@@ -295,14 +295,31 @@ void System::work(machines_t &owned_machines, unsigned int id_employee) {
 
         if (all_delivered) {
             completed_meals[order.first] = std::move(products);
-
             orders_status[order.first] = Status::ready;
 
             bool_coaster_pager[order.first] = true; // nie trzeba lock guarda ?
 
             cv_coaster_pager[order.first].notify_one();
 
-            //czeka az odbierze??
+            std::timed_mutex timed_mutex;
+            if (timed_mutex.try_lock_for(clientTimeout * 1ms)) {
+                bool changed = orders_status.check_and_change(order.first, Status::ready, Status::expired);
+
+                if (changed) {
+                    std::vector<std::thread> threads_to_wait_for_return =
+                    return_products_to_machines(id_employee,
+                                                std::move(completed_meals[order.first]),
+                                                order.second,
+                                                owned_machines);
+
+                    wait_for_return(std::move(threads_to_wait_for_return));
+                }
+
+                timed_mutex.unlock();
+            } else {
+                std::cout << "nie dziala" << "\n"; // TODO usun
+                throw BadOrderException(); // TODO usun
+            }
         } else {
             orders_status[order.first] = Status::breakdown;
 

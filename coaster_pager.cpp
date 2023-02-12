@@ -12,8 +12,6 @@ void CoasterPager::wait() const {
     if (system.orders_status[id] == System::Status::breakdown) {
         throw FulfillmentFailure();
     }
-
-    // zapisz czas umieszczenia
 }
 
 [[nodiscard]] unsigned int CoasterPager::getId() const {
