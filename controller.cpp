@@ -12,7 +12,7 @@ void System::supervise_the_machine(const std::string &name) {
 
         // jesli maszyna zepsuta to idzie do domu
 //        if (machine_closed[name]) {
-//            cv_recipient[name].notify_all(); // tu nikt nie moze czekac
+//            cv_assistant[name].notify_all(); // tu nikt nie moze czekac
 //            return;
 //        }
 //        std::unique_lock<std::mutex> lock_prod(mut_production[name]);
@@ -27,12 +27,12 @@ void System::supervise_the_machine(const std::string &name) {
 //        queue_to_machine[name].pop_front();
 
         {
-//            std::cout <<  "czy zgoda: " << bool_recipient[name] << "\n";
-            std::lock_guard<std::mutex> lock_recipient(mut_recipient[name]);
-            bool_recipient[name] = true;
+//            std::cout <<  "czy zgoda: " << bool_assistant[name] << "\n";
+            std::lock_guard<std::mutex> lock_recipient(mut_assistant[name]);
+            bool_assistant[name] = true;
 //            std::cout << "kontroler: zezwol na produkcje: " << name  << '\n';
         }
-        cv_recipient[name].notify_one();
+        cv_assistant[name].notify_one();
 
         // wątek jakiegoś pracownika wywołuje getProduct
 

@@ -11,6 +11,7 @@
 #include <deque>
 //#include <utility>
 using namespace std::chrono_literals;
+
 #include <unistd.h>
 
 #include <iostream>
@@ -130,8 +131,6 @@ public:
     friend class CoasterPager;
 
 private:
-    std::mutex mut_print;
-
     machines_t machines; // TODO czy to nie powinna byc mapa
     unsigned int numberOfWorkers;
     unsigned int clientTimeout;
@@ -139,8 +138,8 @@ private:
     std::vector<std::thread> threads_controllers;
     std::vector<std::thread> threads_employees;
 
-    std::atomic<bool> system_closed; // TODO: jak ochronic
-    std::atomic<bool> employees_joined; // TODO: jak ochronic
+    std::atomic<bool> system_closed;
+    std::atomic<bool> employees_joined;
     unsigned int free_id;
 
     // order
@@ -148,6 +147,7 @@ private:
     std::mutex mut_ordering_for_employees;
     std::condition_variable cv_ordering_for_employees;
     unsigned int orders_num;
+    std::list<std::pair<unsigned int, std::vector<std::string>>> orders; // ma mutex, oczyszczana
 
     // production
     ConcurrentUnorderedMap<std::string, std::mutex> mut_production;
@@ -155,10 +155,10 @@ private:
     ConcurrentUnorderedMap<std::string, std::condition_variable> cv_production_for_controller;
     ConcurrentUnorderedMap<std::string, unsigned int> queue_size;
 
-    // communication recipient-controller
-    ConcurrentUnorderedMap<std::string, std::mutex> mut_recipient;
-    ConcurrentUnorderedMap<std::string, std::condition_variable> cv_recipient;
-    ConcurrentUnorderedMap<std::string, bool> bool_recipient;
+    // communication assistant-controller
+    ConcurrentUnorderedMap<std::string, std::mutex> mut_assistant;
+    ConcurrentUnorderedMap<std::string, std::condition_variable> cv_assistant;
+    ConcurrentUnorderedMap<std::string, bool> bool_assistant;
     ConcurrentUnorderedMap<std::string, std::mutex> mut_controller;
     ConcurrentUnorderedMap<std::string, std::condition_variable> cv_controller;
     ConcurrentUnorderedMap<std::string, bool> bool_controller;
@@ -168,20 +168,16 @@ private:
     ConcurrentUnorderedMap<unsigned int, std::condition_variable> cv_coaster_pager;
     ConcurrentUnorderedMap<unsigned int, bool> bool_coaster_pager;
 
-    std::mutex mut_completed_meals;
+    // collecting
+    ConcurrentUnorderedMap<unsigned int, unique_products_t> completed_meals;
 
     ConcurrentUnorderedMap<std::string, std::atomic<bool>> machine_closed;
-    map_queue_t queue_to_machine;
-
-    std::list<std::pair<unsigned int, std::vector<std::string>>> orders; // ma mutex, oczyszczana
     ConcurrentUnorderedMap<unsigned int, Status> orders_status;
 
 
-    ConcurrentUnorderedMap<unsigned int, unique_products_t> completed_meals;
-
     ConcurrentUnorderedMap<unsigned int, long long> ordered_time;
-
-    long long get_curr_time_in_millis();
+    std::mutex mut_completed_meals;
+    map_queue_t queue_to_machine;
 
     void check_products(const std::vector<std::string> &products);
 
@@ -197,6 +193,20 @@ private:
                                 unique_products_t products,
                                 const std::vector<std::string> &required_machines,
                                 machines_t &owned_machines);
+
+    void prepare_products_for_picking_up(
+            unsigned int id_employee,
+            unsigned int id,
+            unique_products_t products,
+            const std::vector<std::string> &required_machines,
+            machines_t &owned_machines);
+
+    void prepare_products_for_returning(
+            unsigned int id_employee,
+            unsigned int id,
+            unique_products_t products,
+            const std::vector<std::string> &required_machines,
+            machines_t &owned_machines);
 
     void work(machines_t &owned_machines, unsigned int id_employee);
 

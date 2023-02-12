@@ -1,14 +1,5 @@
 #include "system.hpp"
 
-long long System::get_curr_time_in_millis() {
-    std::chrono::time_point<std::chrono::system_clock> now =
-            std::chrono::system_clock::now();
-    auto duration = now.time_since_epoch();
-    auto millis = std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();
-
-    return millis;
-}
-
 std::vector<WorkerReport> System::shutdown() {
     system_closed = true;
 
