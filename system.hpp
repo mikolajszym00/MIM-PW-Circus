@@ -168,7 +168,7 @@ private:
 
     std::mutex mut_completed_meals;
 
-    ConcurrentUnorderedMap<std::string, std::atomic<bool>> machine_closed;  // TODO: jak ochronic
+    ConcurrentUnorderedMap<std::string, std::atomic<bool>> machine_closed;
     map_queue_t queue_to_machine;
 
     std::list<std::pair<unsigned int, std::vector<std::string>>> orders; // ma mutex, oczyszczana
@@ -179,22 +179,35 @@ private:
 
     void check_products(const std::vector<std::string> &products);
 
-    std::vector<std::thread> send_threads_to_machines(unsigned int id_employee,
-                                                      std::vector<std::future<std::unique_ptr<Product>>> &futures,
-                                                      std::vector<std::promise<std::unique_ptr<Product>>> &promises,
-                                                      const std::vector<std::string> &required_machines,
-                                                      machines_t &owned_machines);
+    std::vector<std::thread>
+    send_threads_to_machines(unsigned int id_employee,
+                             std::vector<std::future<std::unique_ptr<Product>>> &futures,
+                             std::vector<std::promise<std::unique_ptr<Product>>> &promises,
+                             const std::vector<std::string> &required_machines,
+                             machines_t &owned_machines);
+
+    std::vector<std::thread>
+    return_products_to_machines(unsigned int id_employee,
+                                unique_products_t products,
+                                const std::vector<std::string> &required_machines,
+                                machines_t &owned_machines);
 
     void work(machines_t &owned_machines, unsigned int id_employee);
 
     void pick_up_product(unsigned int id_employee,
-//                         std::pair<security, security> &se,
                          std::promise<std::unique_ptr<Product>> &promise,
                          const std::string &name,
                          std::shared_ptr<Machine> &machine);
 
+    void return_product(unsigned int id_employee,
+                        std::unique_ptr<Product> product,
+                        const std::string &name,
+                        std::shared_ptr<Machine> &machine);
+
     unique_products_t collect_products(std::vector<std::thread> threads_to_wait_for,
-                                                           std::vector<std::future<std::unique_ptr<Product>>> futures);
+                                       std::vector<std::future<std::unique_ptr<Product>>> futures);
+
+    void wait_for_return(std::vector<std::thread> threads_to_wait_for);
 
     void supervise_the_machine(const std::string &name);
 

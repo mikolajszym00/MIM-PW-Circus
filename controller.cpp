@@ -7,10 +7,14 @@ void System::supervise_the_machine(const std::string &name) {
 
         cv_production_for_controller[name].wait(lock, [this, name] {
 //            std::cout << "kont: sprawdzam: " << queue_size[name]  << '\n';
-            return (queue_size[name] > 0 || employees_joined);
+            return (queue_size[name] > 0 || employees_joined); // || machine_closed[name]
         });
 
-
+        // jesli maszyna zepsuta to idzie do domu
+//        if (machine_closed[name]) {
+//            cv_recipient[name].notify_all(); // tu nikt nie moze czekac
+//            return;
+//        }
 //        std::unique_lock<std::mutex> lock_prod(mut_production[name]);
 
         if (employees_joined && queue_size[name] == 0) {
@@ -53,25 +57,3 @@ void System::supervise_the_machine(const std::string &name) {
 //        lock_prod.unlock();
     }
 }
-
-
-    //        security &sec_recipient = securities.first;
-//        security &sec_controller = securities.second;
-
-//    {
-//            std::cout <<  "czy zgoda: " << sec_recipient.second << "\n";
-//            std::lock_guard<std::mutex> lock_recipient(*(sec_recipient.first.first));
-//            sec_recipient.second = true;
-//            std::cout << "kontroler: zezwol na produkcje: " << name  << '\n';
-//        }
-//        sec_recipient.first.second->notify_one();
-//
-//        // wątek jakiegoś pracownika wywołuje getProduct
-//
-//        std::unique_lock<std::mutex> lock_controller(*sec_controller.first.first);
-//        sec_controller.first.second->wait(lock_controller, [&sec_controller] { // TODO czy tu &
-//            return (sec_controller.second);
-//        });
-//
-//        sec_controller.second = false; // to juz nie jest potrzebne
-//        lock_controller.unlock(); // to juz nie jest potrzebne

@@ -2,6 +2,8 @@
 
 std::vector<WorkerReport> System::shutdown() {
     system_closed = true;
+
+    //oni moga jeszcze zwracac??
     cv_ordering_for_employees.notify_one();
 //    std::cout << "zamykamy" << '\n';
 
@@ -39,7 +41,8 @@ std::vector<std::string> System::getMenu() const {
     std::vector<std::string> keys;
     keys.reserve(machines.size());
 
-    for(const auto& kv : machines) {
+    for (const auto &kv : machines) {
+//        machine_closed[kv.first]; sprawdzic czy zamkneta- nie mozna bo nie jest const
         keys.push_back(kv.first);
     }
 
@@ -59,8 +62,8 @@ std::vector<unsigned int> System::getPendingOrders() const {
 }
 
 void System::check_products(const std::vector<std::string> &products) {
-    for (const std::string& s: products) { // TODO sprawdzic czy maszyna dziala
-        if (!machines.count(s))
+    for (const std::string& s: products) {
+        if (!machines.count(s) || machine_closed[s])
             throw BadOrderException();
     }
 }
@@ -72,7 +75,7 @@ std::unique_ptr<CoasterPager> System::order(const std::vector<std::string>& prod
         throw RestaurantClosedException();
     }
 
-//    check_products(products);
+    check_products(products);
 
     std::unique_ptr<CoasterPager> cp = std::make_unique<CoasterPager>(free_id, *this);
 
@@ -121,9 +124,16 @@ std::vector<std::unique_ptr<Product>> System::collectOrder(std::unique_ptr<Coast
 
     unique_products_t meal = std::move(completed_meals[id]);
 
-    if (orders_status[id] == Status::expired) { // todo sprawdzac czas wzgledem wydania i dopiero potem zmieniac status
-        throw OrderExpiredException();
-    }
+    // odczytaj czas umieszczenia + clientTimeout > akt czas) {
+//    throw OrderExpiredException();
+    // zmienna czy expired na true
+//}
+    //powiadom pracownika
+
+
+//    if (orders_status[id] == Status::expired) { // todo sprawdzac czas wzgledem wydania i dopiero potem zmieniac status
+//        throw OrderExpiredException();
+//    }
 
     clean_after_order(id);
 
