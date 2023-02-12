@@ -130,10 +130,11 @@ std::vector<std::unique_ptr<Product>> System::collectOrder(std::unique_ptr<Coast
     if (orders_status[id] == Status::pending) {
         throw OrderNotReadyException();
     }
-
+//    std::this_thread::sleep_for(std::chrono::seconds(3));
     bool changed = orders_status.check_and_change(id, Status::ready, Status::collected);
 
     if (!changed) {
+        std::cout << "przeterminowne" << "\n";
         clean_after_order(id);
         throw OrderExpiredException();
     }

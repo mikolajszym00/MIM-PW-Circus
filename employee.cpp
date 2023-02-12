@@ -16,10 +16,7 @@ void System::pick_up_product(unsigned int id_employee,
 //    std::cout << "wa: czekam, " << name << ", przez: " << id_employee << "mozna: " << bool_recipient[name] << '\n';
 
 //    std::this_thread::sleep_for(std::chrono::seconds(3));
-    cv_recipient[name].wait(lock_recipient, [this, name] { // otworzyc jesli zepsuta
-        if (machine_closed[name])
-            return true;
-
+    cv_recipient[name].wait(lock_recipient, [this, name] {
         if (bool_recipient[name]) {
             bool_recipient[name] = false;
             return true;
@@ -28,29 +25,25 @@ void System::pick_up_product(unsigned int id_employee,
         return false;
     });
 
-    if (machine_closed[name]) {
-        promise.set_value(nullptr);
-        cv_recipient[name].notify_one();
-        return; // lock_recipent sam sie zwalnia, kontroler zostanie powiadomiony o awarii przez zglaszajacego
-    }
-    // jesli maszyna jest zepsuta
-
-    try {
+    if (!machine_closed[name]) {
+        try {
 //        std::cout << "wa: przeszedlem, " << name << ", przez: " << id_employee << '\n';
-        promise.set_value(machine->getProduct());
+            promise.set_value(machine->getProduct());
 //        std::cout << "wa: wyprodukowano, " << name << ", przez: " << id_employee << '\n';
-    }
-    catch (const MachineFailure &e) {
+        }
+        catch (const MachineFailure &e) {
+//            std::cout << "wa: zjebana, " << name << ", przez: " << id_employee << '\n';
+            promise.set_value(nullptr);
+            // produkt ma zniknac z menu // TODO
+            machine_closed[name] = true;
+        }
+    } else {
         promise.set_value(nullptr);
-        // produkt ma zniknac z menu // TODO
-        machine_closed[name] = true;
-        cv_recipient[name].notify_one(); // inni mogą wchodzić
-        return;
+//        std::cout << "wa: maszyna zepsuta nie?, " << name << ", przez: " << id_employee << '\n';
     }
 
     lock_recipient.unlock();
 //    std::cout << "jestem " << id_employee << name << '\n';
-
     {
         std::lock_guard<std::mutex> lock_controller(mut_controller[name]);
         bool_controller[name] = true;
@@ -79,7 +72,7 @@ void System::return_product(unsigned int id_employee,
 
         return false;
     });
-//        std::cout << "re: przeszedlem, " << name << ", przez: " << id_employee << '\n';
+
     machine->returnProduct(std::move(product));
 
     lock_recipient.unlock();
@@ -165,10 +158,12 @@ System::return_products_to_machines(unsigned int id_employee,
     unsigned int i = 0;
     for (const std::string &name: required_machines) {
         if (!products[i]) {
+            i++;
+//            std::cout << "r, nulle, name: " << name << " " << "przez: " << id_employee << " i: " << i << "\n";
             continue;
         }
-//        std::cout << "r, name: " << name << " " << "przez: " << id_employee << " i: " << i << "\n";
 
+//        std::cout << "r, do zwrotu, name: " << name << " " << "przez: " << id_employee << " i: " << i << "\n";
         // sprawdzic czy maszyna dziala
 
 //        std::cout << "r: za mut_ordering " << id_employee << ' ' << orders_num << '\n';
@@ -253,7 +248,6 @@ void System::work(machines_t &owned_machines, unsigned int id_employee) {
 
 //        std::cout << "za mut_ordering " << id_employee << ' ' << orders_num << " orders size: " << orders.size()
 //                  << '\n';
-//        print("za mut_ordering", id_employee);
 
         std::pair<unsigned int, std::vector<std::string>> order = orders.front(); // to jest kopia
         orders.pop_front();
@@ -268,6 +262,7 @@ void System::work(machines_t &owned_machines, unsigned int id_employee) {
 
         std::vector<std::future<std::unique_ptr<Product>>> futures;
         std::vector<std::promise<std::unique_ptr<Product>>> promises;
+
         std::vector<std::thread> threads_to_wait_for =
                 send_threads_to_machines(id_employee,
                                          futures,
@@ -290,10 +285,13 @@ void System::work(machines_t &owned_machines, unsigned int id_employee) {
         for (std::unique_ptr<Product> &prod: products) {
             if (!prod) {
                 all_delivered = false;
+            } else {
+//                std::cout << "nazwa prod: " << prod->name << "\n";
             }
         }
 
         if (all_delivered) {
+//            std::cout << "del: all_delivered " << id_employee << "\n";
             completed_meals[order.first] = std::move(products);
             orders_status[order.first] = Status::ready;
 
@@ -301,11 +299,15 @@ void System::work(machines_t &owned_machines, unsigned int id_employee) {
 
             cv_coaster_pager[order.first].notify_one();
 
-            std::timed_mutex timed_mutex;
-            if (timed_mutex.try_lock_for(clientTimeout * 1ms)) {
+//            std::timed_mutex timed_mutex;
+            usleep(clientTimeout * 1000);
+//            if (timed_mutex.try_lock_for(clientTimeout * 1ms)) { // TODO wczesniejsze budzenie jesli odbierze
+//                std::cout << "del: przeszedlem " << id_employee << "\n";
                 bool changed = orders_status.check_and_change(order.first, Status::ready, Status::expired);
 
                 if (changed) {
+//                    std::unique_lock<std::mutex> lock1(mut_ordering);
+
                     std::vector<std::thread> threads_to_wait_for_return =
                     return_products_to_machines(id_employee,
                                                 std::move(completed_meals[order.first]),
@@ -313,18 +315,25 @@ void System::work(machines_t &owned_machines, unsigned int id_employee) {
                                                 owned_machines);
 
                     wait_for_return(std::move(threads_to_wait_for_return));
+
+//                    lock1.unlock();
                 }
 
-                timed_mutex.unlock();
-            } else {
-                std::cout << "nie dziala" << "\n"; // TODO usun
-                throw BadOrderException(); // TODO usun
-            }
+//                timed_mutex.unlock();
+//            }
+//        else {
+//                std::cout << "nie dziala" << "\n"; // TODO usun
+//                throw BadOrderException(); // TODO usun
+//            }
         } else {
+//            std::cout << "del: need return " << id_employee << "\n";
+
             orders_status[order.first] = Status::breakdown;
 
             bool_coaster_pager[order.first] = true; // nie trzeba lock guarda ?
             cv_coaster_pager[order.first].notify_one();
+
+//            std::unique_lock<std::mutex> lock2(mut_ordering);
 
             std::vector<std::thread> threads_to_wait_for_return =
                     return_products_to_machines(id_employee,
@@ -333,6 +342,9 @@ void System::work(machines_t &owned_machines, unsigned int id_employee) {
                                                 owned_machines);
 
             wait_for_return(std::move(threads_to_wait_for_return));
+
+//            std::cout << "del: zebrani " << id_employee << "\n";
+//            lock2.unlock();
         }
     }
 }
