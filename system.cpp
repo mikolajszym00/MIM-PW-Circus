@@ -29,9 +29,13 @@ std::vector<WorkerReport> System::shutdown() {
         machine.second->stop();
     }
 
-    // zebranie raportow
+    std::vector<WorkerReport> wr;
 
-    return {};
+    for (unsigned int j = 0; j < numberOfWorkers; j++) {
+        wr.push_back(std::move(reports[j]));
+    }
+
+    return wr;
 }
 
 std::vector<std::string> System::getMenu() const {
@@ -42,7 +46,7 @@ std::vector<std::string> System::getMenu() const {
     keys.reserve(machines.size());
 
     for (const auto &kv : machines) {
-//        machine_closed[kv.first]; sprawdzic czy zamkneta- nie mozna bo nie jest const
+//        machine_closed.at(kv.first); //sprawdzic czy zamkneta- nie mozna bo nie jest const
         keys.push_back(kv.first);
     }
 
@@ -82,12 +86,9 @@ std::unique_ptr<CoasterPager> System::order(const std::vector<std::string>& prod
     orders.emplace_back(free_id, products);
     orders_status[free_id] = Status::pending;
 
-//    print("free_id dodano: ", free_id);
     free_id++;
 
     unsigned int num = orders.size();
-//    std::cout << num << " ile" << "\n";
-
     lock.unlock();
 
     {

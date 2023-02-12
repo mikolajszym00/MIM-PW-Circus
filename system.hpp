@@ -92,7 +92,8 @@ public:
             system_closed(false),
             employees_joined(false),
             free_id(0),
-            orders_num(0) {
+            orders_num(0),
+            reports(new WorkerReport[numberOfWorkers]){
 
 //        for (const auto &machine: machines) {
 //            machines[machine.first] = machine.second;
@@ -107,8 +108,8 @@ public:
             threads_controllers.push_back(std::move(t));
         }
 
-        for (unsigned int i = 0; i < numberOfWorkers; i++) { // create employees
-            std::thread t{[this, i] { work(this->machines, i); }};
+        for (unsigned int i = 0; i < this->numberOfWorkers; i++) { // create employees
+            std::thread t{[this, i] { work(this->machines, i, reports[i]); }};
 
             threads_employees.push_back(std::move(t));
         }
@@ -171,6 +172,9 @@ private:
     // collecting
     ConcurrentUnorderedMap<unsigned int, unique_products_t> completed_meals;
 
+    // reports
+    WorkerReport* reports;
+
     ConcurrentUnorderedMap<std::string, std::atomic<bool>> machine_closed;
     ConcurrentUnorderedMap<unsigned int, Status> orders_status;
 
@@ -192,23 +196,26 @@ private:
     return_products_to_machines(unsigned int id_employee,
                                 unique_products_t products,
                                 const std::vector<std::string> &required_machines,
-                                machines_t &owned_machines);
+                                machines_t &owned_machines,
+                                WorkerReport &report);
 
     void prepare_products_for_picking_up(
             unsigned int id_employee,
             unsigned int id,
             unique_products_t products,
             const std::vector<std::string> &required_machines,
-            machines_t &owned_machines);
+            machines_t &owned_machines,
+            WorkerReport &report);
 
     void prepare_products_for_returning(
             unsigned int id_employee,
             unsigned int id,
             unique_products_t products,
             const std::vector<std::string> &required_machines,
-            machines_t &owned_machines);
+            machines_t &owned_machines,
+            WorkerReport &report);
 
-    void work(machines_t &owned_machines, unsigned int id_employee);
+    void work(machines_t &owned_machines, unsigned int id_employee, WorkerReport &report);
 
     void pick_up_product(unsigned int id_employee,
                          std::promise<std::unique_ptr<Product>> &promise,

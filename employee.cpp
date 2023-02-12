@@ -57,13 +57,19 @@ std::vector<std::thread>
 System::return_products_to_machines(unsigned int id_employee,
                                     unique_products_t products,
                                     const std::vector<std::string> &required_machines,
-                                    machines_t &owned_machines) {
+                                    machines_t &owned_machines,
+                                    WorkerReport &report) {
     (void) id_employee;
     std::vector<std::thread> threads_to_wait_for;
 
     unsigned int i = 0;
     for (const std::string &name: required_machines) {
         if (!products[i]) {
+            if (std::find(report.failedProducts.begin(),
+                          report.failedProducts.end(), name) == report.failedProducts.end()) {
+                report.failedProducts.push_back(name);
+            }
+
             i++;
 //            std::cout << "r, nulle, name: " << name << " " << "przez: " << id_employee << " i: " << i << "\n";
             continue;
@@ -134,7 +140,8 @@ void System::prepare_products_for_picking_up(
         unsigned int id,
         unique_products_t products,
         const std::vector<std::string> &required_machines,
-        machines_t &owned_machines) {
+        machines_t &owned_machines,
+        WorkerReport &report) {
 
     //  std::cout << "del: all_delivered " << id_employee << "\n";
     completed_meals[id] = std::move(products);
@@ -149,19 +156,22 @@ void System::prepare_products_for_picking_up(
 //                std::cout << "del: przeszedlem " << id_employee << "\n";
     bool changed = orders_status.check_and_change(id, Status::ready, Status::expired);
 
-    if (changed) {
-//                    std::unique_lock<std::mutex> lock1(mut_ordering);
-
-        std::vector<std::thread> threads_to_wait_for_return =
-                return_products_to_machines(id_employee,
-                                            std::move(completed_meals[id]),
-                                            required_machines,
-                                            owned_machines);
-
-        wait_for_return(std::move(threads_to_wait_for_return));
-
-//                    lock1.unlock();
+    if (!changed) {
+        report.collectedOrders.push_back(required_machines);
+        return;
     }
+
+    std::vector<std::thread>
+            threads_to_wait_for_return =
+            return_products_to_machines(id_employee,
+                                        std::move(completed_meals[id]),
+                                        required_machines,
+                                        owned_machines,
+                                        report);
+
+    wait_for_return(std::move(threads_to_wait_for_return));
+
+    report.abandonedOrders.push_back(required_machines);
 }
 
 void System::prepare_products_for_returning(
@@ -169,7 +179,8 @@ void System::prepare_products_for_returning(
         unsigned int id,
         unique_products_t products,
         const std::vector<std::string> &required_machines,
-        machines_t &owned_machines) {
+        machines_t &owned_machines,
+        WorkerReport &report) {
     //            std::cout << "del: need return " << id_employee << "\n";
 
     orders_status[id] = Status::breakdown;
@@ -183,15 +194,15 @@ void System::prepare_products_for_returning(
             return_products_to_machines(id_employee,
                                         std::move(products),
                                         required_machines,
-                                        owned_machines);
+                                        owned_machines,
+                                        report);
 
     wait_for_return(std::move(threads_to_wait_for_return));
 
-//            std::cout << "del: zebrani " << id_employee << "\n";
-//            lock2.unlock();
+    report.failedOrders.push_back(required_machines);
 }
 
-void System::work(machines_t &owned_machines, unsigned int id_employee) {
+void System::work(machines_t &owned_machines, unsigned int id_employee, WorkerReport &report) {
     while (true) {
 //        print("stoje przed mut dla emp: ", id_employee);
 
@@ -251,11 +262,11 @@ void System::work(machines_t &owned_machines, unsigned int id_employee) {
         }
 
         if (all_delivered) {
-            prepare_products_for_picking_up(id_employee, order.first,  std::move(products),
-                                            order.second,  owned_machines);
+            prepare_products_for_picking_up(id_employee, order.first, std::move(products),
+                                            order.second, owned_machines, report);
         } else {
             prepare_products_for_returning(id_employee, order.first, std::move(products),
-                                           order.second, owned_machines);
+                                           order.second, owned_machines, report);
         }
     }
 }

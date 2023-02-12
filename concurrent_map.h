@@ -43,7 +43,6 @@ public:
         return false;
     }
 
-
 //    auto begin() {
 //        std::lock_guard<std::mutex> lock(mutex);
 //        return map.begin();
