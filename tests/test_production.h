@@ -6,6 +6,7 @@
 #include <utility>
 #include "../system.hpp"
 #include "test_ordering.h"
+#include <cassert>
 
 template<typename T, typename V>
 bool checkType(const V *v) {
@@ -29,10 +30,12 @@ public:
 
     std::unique_ptr<Product> getProduct() override {
         ile++;
+        stan++;
         return std::unique_ptr<Product>(new Burger( "cheeseburger" + std::to_string(ile)));
     }
 
     void returnProduct(std::unique_ptr<Product> product) override {
+        stan--;
         (void) product;
     }
 
@@ -41,6 +44,7 @@ public:
     void stop() override {}
 
     int ile = 0;
+    int stan = 0;
 };
 
 class NoBurgerMachine : public CheeseBurgerMachine {
@@ -73,6 +77,24 @@ public:
     }
 };
 
+class IceCreamMachine : public Machine {
+public:
+    std::unique_ptr<Product> getProduct() override {
+        std::this_thread::sleep_for(std::chrono::seconds(sleep));
+        throw MachineFailure();
+    }
+
+    void returnProduct(std::unique_ptr<Product> product) override {
+        stan++;
+        if (!checkType<IceCream>(product.get())) throw BadProductException();
+    }
+
+    void start() override {}
+
+    void stop() override {}
+};
+
+
 void test_production_no_collecting();
 
 void test_production_no_collecting2();
@@ -80,5 +102,11 @@ void test_production_no_collecting2();
 void test_production_collecting();
 
 void test_production_ordering();
+
+void test_production_machine_broke();
+
+void test_production_machine_broke2();
+
+void test_production_order_expired();
 
 #endif //TEST_PRODUCTION_H
