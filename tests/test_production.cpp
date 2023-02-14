@@ -27,11 +27,13 @@ static std::vector<std::string> client_order3 = {food[2], food[2], food[2], food
 static std::vector<std::string> client_order6 = {food[1], food[1], food[2], food[1], food[0], food[2], food[3]};
 static std::vector<std::string> client_order7 = {food[0]};
 static std::vector<std::string> client_order8 = {food[0], food[0], food[0], food[0], food[0], food[0], food[0]};
-static std::vector<std::string> client_order_one_broken = {food[1], food[1], food[1], food[0], food[0], food[0], food[0],
-                                                           food[1], food[1], food[1], food[0], food[0], food[0], food[2]};
+static std::vector<std::string> client_order_one_broken = {food[2],
+                                                           food[1], food[1], food[1], food[0], food[0], food[0],
+                                                           food[0],
+                                                           food[1], food[1], food[1], food[0], food[0], food[0],
+                                                           food[2]};
 static std::vector<std::string> client_order_big = {food[1], food[3], food[3], food[0], food[0], food[3], food[0],
-                                                           food[3], food[1], food[1], food[0], food[3], food[0], food[3]};
-
+                                                    food[3], food[1], food[1], food[0], food[3], food[0], food[3]};
 
 
 static std::vector<std::pair<bool, bool>> where_sleep = {
@@ -49,7 +51,8 @@ void cmp_order_products(const std::vector<std::string> &order, const std::vector
 //    }
 }
 
-void print_cmp_order_products(const std::vector<std::string> &order, const std::vector<std::unique_ptr<Product>> &prod) {
+void
+print_cmp_order_products(const std::vector<std::string> &order, const std::vector<std::unique_ptr<Product>> &prod) {
     std::cout << "Zamowienie: ";
     for (const std::string &o: order) {
         std::cout << o << " ";
@@ -232,7 +235,7 @@ t_p3(const std::vector<std::vector<std::string>> &clients_orders,
 }
 
 
-void
+std::vector<WorkerReport>
 t_p4(System &system,
      const std::vector<std::vector<std::string>> &clients_orders,
      bool sleep1,
@@ -279,14 +282,22 @@ t_p4(System &system,
                 auto p = system.order(client_order);
 
                 if (collect) {
+//                    if (i % 2 == 0) {
                     p->wait();
+//                    }
+
                     unsigned int num = p->getId();
 
                     if (expired) {
                         sleep(1);
                     }
 
-                    std::vector<std::unique_ptr<Product>> prod = system.collectOrder(std::move(p));
+                    std::vector<std::unique_ptr<Product>> prod;
+//                    if (i % 2 == 0) {
+                    prod = system.collectOrder(std::move(p));
+//                    } else {
+//                        prod.emplace_back(nullptr);
+//                    }
 
                     promises_id[i].set_value(num);
                     promises[i].set_value(std::make_pair(client_order, std::move(prod)));
@@ -308,6 +319,11 @@ t_p4(System &system,
                 right_i[i] = false;
                 promises_id[i].set_value(10001);
             }
+            catch (const OrderNotReadyException &e) {
+                right_i[i] = false;
+                promises_id[i].set_value(10001);
+            }
+
         });
         threads.push_back(std::move(client));
 
@@ -331,15 +347,15 @@ t_p4(System &system,
 
 //    sleep(10);
 
-    system.shutdown();
+    return system.shutdown();
 
 //     wypisanie
-    for (unsigned int j = 0; j < i; j++) {
-        std::cout << "joty " << j << "\n";
-        print_cmp_order_products(sol[j].first, sol[j].second);
-    }
+//    for (unsigned int j = 0; j < i; j++) {
+//        std::cout << "joty " << j << "\n";
+//        print_cmp_order_products(sol[j].first, sol[j].second);
+//    }
 
-    std::cout << "passed" << c_p.get_i() << "\n";
+//    std::cout << "passed" << c_p.get_i() << "\n";
 }
 
 // no collecting, no returning
@@ -438,7 +454,7 @@ void test_production_machine_broke() {
 }
 
 // dużo przyjętych zamówień do zwrotu
-void test_production_machine_broke2() {
+void test_production_machine_broke2() { // wywalilo//
     auto mach_ice = std::shared_ptr<Machine>(new IceCreamMachine());
     mach_ice->sleep = 1;
 
@@ -462,14 +478,15 @@ void test_production_machine_broke2() {
     assert(mach_no->stan == 0);
 
     System system_broken_machine2{{
-                                         {"cheeseburger", mach_cheese},
-                                         {"hamburger", mach_ham},
-                                         {"icecream", mach_ice},
-                                         {"noburger", mach_no}
-                                 }, 4, 1
+                                          {"cheeseburger", mach_cheese},
+                                          {"hamburger", mach_ham},
+                                          {"icecream", mach_ice},
+                                          {"noburger", mach_no}
+                                  }, 4, 1
     };
 
-    t_p4(system_broken_machine2, {client_order_one_broken, client_order3, client_order3, client_order3, client_order6,
+    t_p4(system_broken_machine2, {client_order_one_broken,
+                                  client_order3, client_order3, client_order3, client_order6,
                                   client_order7, client_order8, client_order_one_broken},
          false, false, false, true, false);
 
@@ -508,10 +525,90 @@ void test_production_order_expired() {
                                          {"cheeseburger", mach_cheese},
                                          {"hamburger", mach_ham},
                                          {"noburger", mach_no}
-                                 }, 3, 1
+                                 }, 3, 10000000
     };
 
     t_p4(system_broken_machine, {client_order_big, client_order_big, client_order_big, client_order_big,
-                 client_order_big, client_order_big, client_order_big},
+                                 client_order_big, client_order_big, client_order_big},
+         false, false, false, true, false);
+
+    System system_b{{
+                                         {"cheeseburger", mach_cheese},
+                                         {"hamburger", mach_ham},
+                                         {"noburger", mach_no}
+                                 }, 3, 1
+    };
+
+    t_p4(system_b, {client_order_big, client_order_big, client_order_big, client_order_big,
+                                 client_order_big, client_order_big, client_order_big},
          false, false, false, true, true);
+}
+
+void test_production_report() {
+    auto mach_ice = std::shared_ptr<Machine>(new IceCreamMachine());
+    mach_ice->sleep = 1;
+    auto mach_cheese = std::shared_ptr<Machine>(new CheeseBurgerMachine());
+    auto mach_ham = std::shared_ptr<Machine>(new HamBurgerMachine());
+    auto mach_no = std::shared_ptr<Machine>(new NoBurgerMachine());
+
+    mach_no->sleep = 1;
+
+    System system_machine2{{
+                                   {"cheeseburger", mach_cheese},
+                                   {"hamburger", mach_ham},
+                                   {"noburger", mach_no},
+                                   {"icecream", mach_ice}
+                           }, 3, 1
+    };
+
+    std::vector<WorkerReport> wr = t_p4(system_machine2, {client_order_big, client_order_big, client_order_big,
+                                                          client_order1, client_order0, client_order_big,
+                                                          client_order_big, client_order_big, client_order_big},
+                                        false, false, false, true, false);
+
+    for (const WorkerReport &w : wr) {
+        std::cout << "WR: " << "\n\n";
+
+        std::cout << "collectedOrders: " << "\n\n";
+        int i = 0;
+        for (const std::vector<std::string> &coll_vec: w.collectedOrders) {
+            std::cout << "Zamowinie: " << i << '\n';
+            for (const std::string &coll: coll_vec) {
+                std::cout << coll << " ";
+            }
+            i++;
+            std::cout << '\n';
+        }
+
+        std::cout << "failedOrders: " << "\n\n";
+        i = 0;
+        for (const std::vector<std::string> &coll_vec: w.failedOrders) {
+            std::cout << "Zamowinie: " << i << '\n';
+            for (const std::string &coll: coll_vec) {
+                std::cout << coll << " ";
+            }
+            i++;
+            std::cout << '\n';
+        }
+
+        std::cout << "abandonedOrders: " << "\n\n";
+        i = 0;
+        for (const std::vector<std::string> &coll_vec: w.abandonedOrders) {
+            std::cout << "Zamowinie: " << i << '\n';
+            for (const std::string &coll: coll_vec) {
+                std::cout << coll << " ";
+            }
+            i++;
+            std::cout << '\n';
+        }
+
+        std::cout << "failedProducts: " << "\n\n";
+        i = 0;
+        for (const std::string &coll_vec: w.failedProducts) {
+            std::cout << coll_vec << " ";
+
+            i++;
+            std::cout << '\n';
+        }
+    }
 }

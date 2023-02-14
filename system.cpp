@@ -5,14 +5,14 @@ std::vector<WorkerReport> System::shutdown() {
 
     //oni moga jeszcze zwracac??
     cv_ordering_for_employees.notify_one();
-//    std::cout << "zamykamy" << '\n';
+    std::cout << "zamykamy" << '\n';
 
     unsigned int i = 0;
     while (i < threads_employees.size()) {
         threads_employees[i].join();
         i++;
     }
-//    std::cout << "emplo joinde" << '\n';
+    std::cout << "emplo joinde" << '\n';
     employees_joined = true;
 
     for (const auto& machine: machines) {
@@ -25,9 +25,13 @@ std::vector<WorkerReport> System::shutdown() {
         i++;
     }
 
+    std::cout << "contlloerr joinde" << '\n';
+
     for (const auto &machine: machines) { // stops machines
         machine.second->stop();
     }
+
+    std::cout << "machine stops" << '\n';
 
     std::vector<WorkerReport> wr;
 
@@ -45,9 +49,11 @@ std::vector<std::string> System::getMenu() const {
     std::vector<std::string> keys;
     keys.reserve(machines.size());
 
+    unsigned int i = 0;
     for (const auto &kv : machines) {
-//        machine_closed.at(kv.first); //sprawdzic czy zamkneta- nie mozna bo nie jest const
-        keys.push_back(kv.first);
+        if (!machine_closed_get_menu[i]) {
+            keys.push_back(kv.first);
+        }
     }
 
     return keys;
@@ -55,6 +61,7 @@ std::vector<std::string> System::getMenu() const {
 
 std::vector<unsigned int> System::getPendingOrders() const {
     std::vector<unsigned int> vec;
+
 
 //    for (auto status: orders_status) {
 //        if (status.second == Status::pending) {
@@ -84,6 +91,7 @@ std::unique_ptr<CoasterPager> System::order(const std::vector<std::string>& prod
     std::unique_ptr<CoasterPager> cp = std::make_unique<CoasterPager>(free_id, *this);
 
     orders.emplace_back(free_id, products);
+//    orders_status_const[free_id] = true;
     orders_status[free_id] = Status::pending;
 
     free_id++;
@@ -103,9 +111,14 @@ std::unique_ptr<CoasterPager> System::order(const std::vector<std::string>& prod
 }
 
 void System::clean_after_order(unsigned int id) {
-    orders_status.erase(id);
     mut_coaster_pager.erase(id);
-    completed_meals.erase(id);
+    cv_coaster_pager.erase(id);
+    is_ready.erase(id);
+    bool_coaster_pager.erase(id);
+
+    mut_sleep.erase(id); //
+    cv_sleep.erase(id); //
+    bool_sleep.erase(id); //
 }
 
 std::vector<std::unique_ptr<Product>> System::collectOrder(std::unique_ptr<CoasterPager> CoasterPager) {
@@ -122,16 +135,27 @@ std::vector<std::unique_ptr<Product>> System::collectOrder(std::unique_ptr<Coast
     if (orders_status[id] == Status::pending) {
         throw OrderNotReadyException();
     }
-//    std::this_thread::sleep_for(std::chrono::seconds(3));
+
     bool changed = orders_status.check_and_change(id, Status::ready, Status::collected);
 
     if (!changed) {
-        std::cout << "przeterminowne" << "\n";
+        orders_status.erase(id); // usuwa ten kto byl drugi
         clean_after_order(id);
         throw OrderExpiredException();
     }
 
+    {
+        std::lock_guard<std::mutex> lock(mut_sleep[id]);
+        bool_sleep[id] = true;
+    }
+    cv_sleep[id].notify_one();
+
+//    mut_sleep.erase(id); // pracownik zdejmie locka dopiero jak wyjdzie
+//    cv_sleep.erase(id); //
+//    bool_sleep.erase(id); //
+
     unique_products_t meal = std::move(completed_meals[id]);
+    completed_meals.erase(id);
 
     clean_after_order(id);
     return meal;

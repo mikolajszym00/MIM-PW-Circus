@@ -30,17 +30,20 @@ void System::pick_up_product(unsigned int id_employee,
         try {
 //        std::cout << "wa: przeszedlem, " << name << ", przez: " << id_employee << '\n';
             promise.set_value(machine->getProduct());
+
+
 //        std::cout << "wa: wyprodukowano, " << name << ", przez: " << id_employee << '\n';
         }
         catch (const MachineFailure &e) {
 //            std::cout << "wa: zjebana, " << name << ", przez: " << id_employee << '\n';
             promise.set_value(nullptr);
-            // produkt ma zniknac z menu // TODO
+            unsigned int id = machine_name_to_id[name];
+            machine_closed_get_menu[id] = true;
             machine_closed[name] = true;
         }
     } else {
         promise.set_value(nullptr);
-//        std::cout << "wa: maszyna zepsuta nie?, " << name << ", przez: " << id_employee << '\n';
+        std::cout << "wa: maszyna zepsuta nie?, " << name << ", przez: " << id_employee << '\n';
     }
 
     lock_assistant.unlock();
@@ -57,6 +60,8 @@ void System::pick_up_product(unsigned int id_employee,
 
 void System::return_product(unsigned int id_employee,
                             std::unique_ptr<Product> product,
+//                            std::vector<std::unique_ptr<Product>> &products,
+//                            unsigned int i,
                             const std::string &name,
                             std::shared_ptr<Machine> &machine) {
     (void) id_employee;
@@ -77,6 +82,10 @@ void System::return_product(unsigned int id_employee,
 
         return false;
     });
+
+    if (!product) {
+        std::cout << "re2: zwracam nulla: " << id_employee << "name " << name << '\n';
+    }
 
     machine->returnProduct(std::move(product));
 

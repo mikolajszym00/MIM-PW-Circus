@@ -9,7 +9,7 @@
 #include <list>
 #include <map>
 #include <deque>
-//#include <utility>
+
 using namespace std::chrono_literals;
 
 #include <unistd.h>
@@ -48,9 +48,7 @@ class System;
 
 class CoasterPager {
 public:
-    CoasterPager(unsigned int id, System &system) : id(id), system(system) {
-        is_ready = false;
-    }
+    CoasterPager(unsigned int id, System &system) : id(id), system(system) {}
 
     void wait() const;
 
@@ -58,30 +56,21 @@ public:
 
     [[nodiscard]] unsigned int getId() const;
 
-    [[nodiscard]] bool isReady() const; // TODO jest gotowe zamowienie ale czy poprawnie
+    [[nodiscard]] bool isReady() const;
 
 private:
     unsigned int id;
-    bool is_ready;
 
-    System &system; // TODO: czy & ma byc
+    System &system;
 };
 
 class System {
 public:
     enum class Status {
         ready, pending, expired, breakdown, collected
-    }; // jeśli nie ma w bazie to oznacza ze odebrane
-
-    using mut_secrity = std::shared_ptr<std::mutex>;
-    using cv_secrity = std::shared_ptr<std::condition_variable>;
+    };
 
     typedef std::unordered_map<std::string, std::shared_ptr<Machine>> machines_t;
-//    typedef std::unordered_map<std::string, std::shared_ptr<Machine>> machines_t_stare;
-
-    typedef std::pair<std::pair<mut_secrity, cv_secrity>, bool> security;
-
-    typedef ConcurrentUnorderedMap<std::string, std::deque<std::pair<security, security>>> map_queue_t;
 
     typedef std::vector<std::unique_ptr<Product>> unique_products_t;
 
@@ -93,19 +82,21 @@ public:
             employees_joined(false),
             free_id(0),
             orders_num(0),
-            reports(new WorkerReport[numberOfWorkers]){
+            reports(new WorkerReport[numberOfWorkers]),
+            machine_closed_get_menu(new std::atomic<bool>[machines.size()])
+            {
 
-//        for (const auto &machine: machines) {
-//            machines[machine.first] = machine.second;
-//        }
-
+        unsigned int j = 0;
         for (const auto &machine: this->machines) { // create controllers
+            machine_closed_get_menu[j] = false;
+            machine_name_to_id[machine.first] = j;
             machine.second->start();
 
             const std::string &name = machine.first;
             std::thread t{[this, name] { supervise_the_machine(name); }};
 
             threads_controllers.push_back(std::move(t));
+            j++;
         }
 
         for (unsigned int i = 0; i < this->numberOfWorkers; i++) { // create employees
@@ -132,7 +123,7 @@ public:
     friend class CoasterPager;
 
 private:
-    machines_t machines; // TODO czy to nie powinna byc mapa
+    machines_t machines;
     unsigned int numberOfWorkers;
     unsigned int clientTimeout;
 
@@ -148,10 +139,9 @@ private:
     std::mutex mut_ordering_for_employees;
     std::condition_variable cv_ordering_for_employees;
     unsigned int orders_num;
-    std::list<std::pair<unsigned int, std::vector<std::string>>> orders; // ma mutex, oczyszczana
+    std::list<std::pair<unsigned int, std::vector<std::string>>> orders;
 
     // production
-    ConcurrentUnorderedMap<std::string, std::mutex> mut_production;
     ConcurrentUnorderedMap<std::string, std::mutex> mut_production_for_controller;
     ConcurrentUnorderedMap<std::string, std::condition_variable> cv_production_for_controller;
     ConcurrentUnorderedMap<std::string, unsigned int> queue_size;
@@ -168,20 +158,25 @@ private:
     ConcurrentUnorderedMap<unsigned int, std::mutex> mut_coaster_pager;
     ConcurrentUnorderedMap<unsigned int, std::condition_variable> cv_coaster_pager;
     ConcurrentUnorderedMap<unsigned int, bool> bool_coaster_pager;
+    std::map<unsigned int, bool> is_ready;
 
-    // collecting
+    // collect
     ConcurrentUnorderedMap<unsigned int, unique_products_t> completed_meals;
 
     // reports
     WorkerReport* reports;
 
+    // sleep
+    ConcurrentUnorderedMap<unsigned int, std::mutex> mut_sleep;
+    ConcurrentUnorderedMap<unsigned int, std::condition_variable> cv_sleep;
+    ConcurrentUnorderedMap<unsigned int, bool> bool_sleep;
+
+
     ConcurrentUnorderedMap<std::string, std::atomic<bool>> machine_closed;
+    ConcurrentUnorderedMap<std::string, unsigned int> machine_name_to_id;
+    std::atomic<bool>* machine_closed_get_menu;
+
     ConcurrentUnorderedMap<unsigned int, Status> orders_status;
-
-
-    ConcurrentUnorderedMap<unsigned int, long long> ordered_time;
-    std::mutex mut_completed_meals;
-    map_queue_t queue_to_machine;
 
     void check_products(const std::vector<std::string> &products);
 

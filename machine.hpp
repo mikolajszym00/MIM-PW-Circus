@@ -22,6 +22,7 @@ class Product
 {
 public:
     explicit Product(std::string name) : name(std::move(name)) {};
+//    Product() = default;
     Product(const Product&) = delete;
     Product& operator=(const Product&) = delete;
     virtual ~Product() = default;

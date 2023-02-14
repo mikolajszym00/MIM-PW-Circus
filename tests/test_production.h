@@ -109,4 +109,6 @@ void test_production_machine_broke2();
 
 void test_production_order_expired();
 
+void test_production_report();
+
 #endif //TEST_PRODUCTION_H

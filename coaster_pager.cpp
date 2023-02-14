@@ -14,10 +14,14 @@ void CoasterPager::wait() const {
     }
 }
 
+void CoasterPager::wait(unsigned int timeout) const {
+    usleep(timeout * 1000);
+}
+
 [[nodiscard]] unsigned int CoasterPager::getId() const {
     return id;
 }
 
 [[nodiscard]] bool CoasterPager::isReady() const {
-    return is_ready;
+    return system.is_ready.at(getId());
 }

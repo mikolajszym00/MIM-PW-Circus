@@ -60,8 +60,13 @@ System::return_products_to_machines(unsigned int id_employee,
                                     machines_t &owned_machines,
                                     WorkerReport &report) {
     (void) id_employee;
+
+    std::mutex mut_return;
+    std::condition_variable cv_return;
+
     std::vector<std::thread> threads_to_wait_for;
 
+    std::atomic<unsigned int> returned = 0;
     unsigned int i = 0;
     for (const std::string &name: required_machines) {
         if (!products[i]) {
@@ -71,12 +76,13 @@ System::return_products_to_machines(unsigned int id_employee,
             }
 
             i++;
+            returned++;
 //            std::cout << "r, nulle, name: " << name << " " << "przez: " << id_employee << " i: " << i << "\n";
             continue;
         }
 
-//        std::cout << "r, do zwrotu, name: " << name << " " << "przez: " << id_employee << " i: " << i << "\n";
-        // sprawdzic czy maszyna dziala
+        std::cout << "r, do zwrotu, name: " << name << " " << "przez: " << id_employee
+        << " i: " << i << "\n";
 
 //        std::cout << "r: za mut_ordering " << id_employee << ' ' << orders_num << '\n';
 
@@ -85,12 +91,17 @@ System::return_products_to_machines(unsigned int id_employee,
 //        std::cout << "r: mut_prod passed " << "maszyna: " << name << " " << "pracownik: " << id_employee << " i: " << i
 //                  << "\n";
 
-        std::thread t{[id_employee, this, i, &products, name, &owned_machines] {
+        std::thread t{[&cv_return, &returned, &products, i, id_employee, this, name, &owned_machines] {
+            // mozna stworzyc zmienna ktora zbiera products[i] i potem returned++
+
             return_product(
                     id_employee,
                     std::move(products[i]),
                     name,
                     owned_machines[name]);
+
+            returned++;
+            cv_return.notify_one();
         }};
 
         {
@@ -108,6 +119,12 @@ System::return_products_to_machines(unsigned int id_employee,
         threads_to_wait_for.push_back(std::move(t));
         i++;
     }
+
+    // czeka aż każdy wątek zwracający zabierze wartość z products
+    std::unique_lock<std::mutex> lock_return(mut_return);
+    cv_return.wait(lock_return, [required_machines, &returned] {
+        return required_machines.size() == returned;
+    });
 
     return threads_to_wait_for;
 }
@@ -143,23 +160,30 @@ void System::prepare_products_for_picking_up(
         machines_t &owned_machines,
         WorkerReport &report) {
 
-    //  std::cout << "del: all_delivered " << id_employee << "\n";
     completed_meals[id] = std::move(products);
     orders_status[id] = Status::ready;
+    is_ready[id] = true;
 
-    bool_coaster_pager[id] = true; // nie trzeba lock guarda ?
+    bool_coaster_pager[id] = true;
 
     cv_coaster_pager[id].notify_one();
 
-    usleep(clientTimeout * 1000);
-//            if (timed_mutex.try_lock_for(clientTimeout * 1ms)) { // TODO wczesniejsze budzenie jesli odbierze
-//                std::cout << "del: przeszedlem " << id_employee << "\n";
+    std::unique_lock<std::mutex> lock(mut_sleep[id]);
+    cv_sleep[id].wait_for(lock,
+                          std::chrono::milliseconds(clientTimeout),
+                          [this, &id]() { return bool_sleep[id]; });
+
     bool changed = orders_status.check_and_change(id, Status::ready, Status::expired);
 
     if (!changed) {
+        orders_status.erase(id);
         report.collectedOrders.push_back(required_machines);
         return;
     }
+
+    mut_sleep.erase(id); // jesli pracownik zmienil to znaczy ze system nie bedzie budzil
+    cv_sleep.erase(id); //
+    bool_sleep.erase(id); //
 
     std::vector<std::thread>
             threads_to_wait_for_return =
@@ -170,8 +194,11 @@ void System::prepare_products_for_picking_up(
                                         report);
 
     wait_for_return(std::move(threads_to_wait_for_return));
+    completed_meals.erase(id); // usuwa ten kto wykorzystal
 
     report.abandonedOrders.push_back(required_machines);
+
+    //
 }
 
 void System::prepare_products_for_returning(
@@ -185,7 +212,7 @@ void System::prepare_products_for_returning(
 
     orders_status[id] = Status::breakdown;
 
-    bool_coaster_pager[id] = true; // nie trzeba lock guarda ?
+    bool_coaster_pager[id] = true;
     cv_coaster_pager[id].notify_one();
 
 //            std::unique_lock<std::mutex> lock2(mut_ordering);
@@ -221,7 +248,7 @@ void System::work(machines_t &owned_machines, unsigned int id_employee, WorkerRe
             cv_ordering_for_employees.notify_one();
             return;
         }
-
+//    std::this_thread::sleep_for(std::chrono::seconds(1));
         std::vector<std::future<std::unique_ptr<Product>>> futures;
         std::vector<std::promise<std::unique_ptr<Product>>> promises;
 
@@ -249,7 +276,7 @@ void System::work(machines_t &owned_machines, unsigned int id_employee, WorkerRe
                 collect_products(std::move(threads_to_wait_for),
                                  std::move(futures));
 
-//        std::cout << "tak" << "\n";
+
 
         // sprawdzenie czy są wszystkie produkty
         bool all_delivered = true;
@@ -257,7 +284,7 @@ void System::work(machines_t &owned_machines, unsigned int id_employee, WorkerRe
             if (!prod) {
                 all_delivered = false;
             } else {
-//                std::cout << "nazwa prod: " << prod->name << "\n";
+
             }
         }
 
@@ -265,8 +292,11 @@ void System::work(machines_t &owned_machines, unsigned int id_employee, WorkerRe
             prepare_products_for_picking_up(id_employee, order.first, std::move(products),
                                             order.second, owned_machines, report);
         } else {
+            std::cout << "czegos nie dostarczono" << "\n";
             prepare_products_for_returning(id_employee, order.first, std::move(products),
                                            order.second, owned_machines, report);
         }
+
+        std::cout << "tak" << "\n";
     }
 }
