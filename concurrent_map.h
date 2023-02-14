@@ -24,11 +24,6 @@ public:
         return !(map.find(key) == map.end());
     }
 
-    bool empty() {
-        std::lock_guard<std::mutex> lock(mutex);
-        return map.empty();
-    }
-
     bool check_and_change(const Key &key, Value from, Value to) {
         std::lock_guard<std::mutex> lock(mutex);
         if (map.find(key) == map.end()) {
@@ -42,16 +37,6 @@ public:
 
         return false;
     }
-
-//    auto begin() {
-//        std::lock_guard<std::mutex> lock(mutex);
-//        return map.begin();
-//    }
-//
-//    auto end() {
-//        std::lock_guard<std::mutex> lock(mutex);
-//        return map.end();
-//    }
 
 private:
     std::map<Key, Value> map;
