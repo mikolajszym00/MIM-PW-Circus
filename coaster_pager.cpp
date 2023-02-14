@@ -5,6 +5,7 @@ void CoasterPager::wait() const {
 
     std::unique_lock<std::mutex> lock(system.mut_coaster_pager[id]);
 
+    // klient czeka na zamowienie
     system.cv_coaster_pager[id].wait(lock, [this] {
         return system.bool_coaster_pager[id];
     });

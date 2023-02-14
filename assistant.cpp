@@ -7,16 +7,10 @@ void System::pick_up_product(unsigned int id_employee,
                              std::shared_ptr<Machine> &machine) {
 
     (void) id_employee;
-//
-//    if (id_employee%2 == 0) {
-//        std::this_thread::sleep_for(std::chrono::seconds(1));
-//    }
 
-    // tu watki moga zostac wyprzedzone
     std::unique_lock<std::mutex> lock_assistant(mut_assistant[name]);
-//    std::cout << "wa: czekam, " << name << ", przez: " << id_employee << "mozna: " << bool_assistant[name] << '\n';
 
-//    std::this_thread::sleep_for(std::chrono::seconds(3));
+    // asystent czeka az zostanie wpuszczony do maszyny
     cv_assistant[name].wait(lock_assistant, [this, name] {
         if (bool_assistant[name]) {
             bool_assistant[name] = false;
@@ -28,14 +22,9 @@ void System::pick_up_product(unsigned int id_employee,
 
     if (!machine_closed[name]) {
         try {
-//        std::cout << "wa: przeszedlem, " << name << ", przez: " << id_employee << '\n';
             promise.set_value(machine->getProduct());
-
-
-//        std::cout << "wa: wyprodukowano, " << name << ", przez: " << id_employee << '\n';
         }
-        catch (const MachineFailure &e) {
-//            std::cout << "wa: zjebana, " << name << ", przez: " << id_employee << '\n';
+        catch (const MachineFailure &e) { // spichlerz jest pusty
             promise.set_value(nullptr);
             unsigned int id = machine_name_to_id[name];
             machine_closed_get_menu[id] = true;
@@ -43,37 +32,27 @@ void System::pick_up_product(unsigned int id_employee,
         }
     } else {
         promise.set_value(nullptr);
-        std::cout << "wa: maszyna zepsuta nie?, " << name << ", przez: " << id_employee << '\n';
     }
 
     lock_assistant.unlock();
-//    std::cout << "jestem " << id_employee << name << '\n';
-    {
+
+    { // asystent powiadamia kontrolera ze skonczyl korzystac z maszyny
         std::lock_guard<std::mutex> lock_controller(mut_controller[name]);
         bool_controller[name] = true;
     }
 
     cv_controller[name].notify_one();
-
-//    std::cout << "wa: odchodze, przez: " << id_employee << '\n';
 }
 
 void System::return_product(unsigned int id_employee,
                             std::unique_ptr<Product> product,
-//                            std::vector<std::unique_ptr<Product>> &products,
-//                            unsigned int i,
                             const std::string &name,
                             std::shared_ptr<Machine> &machine) {
     (void) id_employee;
-//
-//    if (id_employee%2 == 0) {
-//        std::this_thread::sleep_for(std::chrono::seconds(1));
-//    }
 
     std::unique_lock<std::mutex> lock_assistant(mut_assistant[name]);
-//    std::cout << "re1: czekam, " << name << ", przez: " << id_employee << "mozna: " << bool_assistant[name] << '\n';
 
-//    std::this_thread::sleep_for(std::chrono::seconds(3));
+    // asystent czeka az zostanie wpuszczony do maszyny
     cv_assistant[name].wait(lock_assistant, [this, name] {
         if (bool_assistant[name]) {
             bool_assistant[name] = false;
@@ -83,21 +62,14 @@ void System::return_product(unsigned int id_employee,
         return false;
     });
 
-    if (!product) {
-        std::cout << "re2: zwracam nulla: " << id_employee << "name " << name << '\n';
-    }
-
     machine->returnProduct(std::move(product));
 
     lock_assistant.unlock();
-//    std::cout << "re2: zwrocilem " << id_employee << name << '\n';
 
-    {
-        std::lock_guard<std::mutex> lock_controller(mut_controller[name]); // nie potrzeba
+    { // asystent powiadamia kontrolera ze skonczyl korzystac z maszyny
+        std::lock_guard<std::mutex> lock_controller(mut_controller[name]);
         bool_controller[name] = true;
     }
 
     cv_controller[name].notify_one();
-
-//    std::cout << "re3: odchodze, przez: " << id_employee << '\n';
 }

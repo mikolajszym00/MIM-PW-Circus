@@ -138,7 +138,7 @@ private:
     std::mutex mut_ordering;
     std::mutex mut_ordering_for_employees;
     std::condition_variable cv_ordering_for_employees;
-    unsigned int orders_num;
+    std::atomic<unsigned int> orders_num;
     std::list<std::pair<unsigned int, std::vector<std::string>>> orders;
 
     // production
@@ -166,17 +166,18 @@ private:
     // reports
     WorkerReport* reports;
 
+    // status
+    ConcurrentUnorderedMap<unsigned int, Status> orders_status;
+
     // sleep
     ConcurrentUnorderedMap<unsigned int, std::mutex> mut_sleep;
     ConcurrentUnorderedMap<unsigned int, std::condition_variable> cv_sleep;
     ConcurrentUnorderedMap<unsigned int, bool> bool_sleep;
 
-
+    // close
     ConcurrentUnorderedMap<std::string, std::atomic<bool>> machine_closed;
     ConcurrentUnorderedMap<std::string, unsigned int> machine_name_to_id;
     std::atomic<bool>* machine_closed_get_menu;
-
-    ConcurrentUnorderedMap<unsigned int, Status> orders_status;
 
     void check_products(const std::vector<std::string> &products);
 

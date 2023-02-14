@@ -3,16 +3,13 @@
 std::vector<WorkerReport> System::shutdown() {
     system_closed = true;
 
-    //oni moga jeszcze zwracac??
     cv_ordering_for_employees.notify_one();
-    std::cout << "zamykamy" << '\n';
 
     unsigned int i = 0;
     while (i < threads_employees.size()) {
         threads_employees[i].join();
         i++;
     }
-    std::cout << "emplo joinde" << '\n';
     employees_joined = true;
 
     for (const auto& machine: machines) {
@@ -25,13 +22,9 @@ std::vector<WorkerReport> System::shutdown() {
         i++;
     }
 
-    std::cout << "contlloerr joinde" << '\n';
-
     for (const auto &machine: machines) { // stops machines
         machine.second->stop();
     }
-
-    std::cout << "machine stops" << '\n';
 
     std::vector<WorkerReport> wr;
 
@@ -62,7 +55,6 @@ std::vector<std::string> System::getMenu() const {
 std::vector<unsigned int> System::getPendingOrders() const {
     std::vector<unsigned int> vec;
 
-
 //    for (auto status: orders_status) {
 //        if (status.second == Status::pending) {
 //            vec.push_back(status.first);
@@ -80,6 +72,7 @@ void System::check_products(const std::vector<std::string> &products) {
 }
 
 std::unique_ptr<CoasterPager> System::order(const std::vector<std::string>& products) {
+    // wstawia zamowienie do listy (wyjmie je ktorys z pracownikow)
     std::unique_lock<std::mutex> lock(mut_ordering);
 
     if (system_closed) {
@@ -91,7 +84,7 @@ std::unique_ptr<CoasterPager> System::order(const std::vector<std::string>& prod
     std::unique_ptr<CoasterPager> cp = std::make_unique<CoasterPager>(free_id, *this);
 
     orders.emplace_back(free_id, products);
-//    orders_status_const[free_id] = true;
+
     orders_status[free_id] = Status::pending;
 
     free_id++;
@@ -115,10 +108,6 @@ void System::clean_after_order(unsigned int id) {
     cv_coaster_pager.erase(id);
     is_ready.erase(id);
     bool_coaster_pager.erase(id);
-
-    mut_sleep.erase(id); //
-    cv_sleep.erase(id); //
-    bool_sleep.erase(id); //
 }
 
 std::vector<std::unique_ptr<Product>> System::collectOrder(std::unique_ptr<CoasterPager> CoasterPager) {
@@ -136,6 +125,7 @@ std::vector<std::unique_ptr<Product>> System::collectOrder(std::unique_ptr<Coast
         throw OrderNotReadyException();
     }
 
+    // system albo dany pracownik moze zmienic status zamowienia (collected lub expired)
     bool changed = orders_status.check_and_change(id, Status::ready, Status::collected);
 
     if (!changed) {
